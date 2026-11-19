@@ -3,11 +3,14 @@ import {
   BODY_COLORS,
   DEFAULT_AVATAR,
   ITEMS,
+  MOODS,
   PETS,
   SLOTS,
   allAvatarConfigs,
   allLayerFiles,
   avatarLayers,
+  bodyFile,
+  moodForScore,
   normalizeAvatar,
   setPet,
   setSlot,
@@ -109,5 +112,31 @@ describe('avatar : toutes les combinaisons', () => {
       'pet-escargot', 'petacc-escargot-noeud', 'back-cape', 'body-peach',
       'neck-echarpe-alt', 'head-chapeau', 'face-soleil', 'held-livre-alt',
     ]);
+  });
+});
+
+describe('avatar : humeur', () => {
+  it('suit le score du jour', () => {
+    expect(moodForScore(null)).toBe('neutral');
+    expect(moodForScore(0.2)).toBe('sleepy');
+    expect(moodForScore(0.39)).toBe('sleepy');
+    expect(moodForScore(0.4)).toBe('neutral');
+    expect(moodForScore(0.79)).toBe('neutral');
+    expect(moodForScore(0.8)).toBe('happy');
+    expect(moodForScore(1)).toBe('happy');
+    expect(moodForScore(1, true)).toBe('sleepy'); // journée Off : il se repose
+  });
+
+  it('seul le corps change selon l’humeur ; le neutre garde son nom d’origine', () => {
+    const cfg = { ...DEFAULT_AVATAR, body: 'lilac' as const, head: 'bonnet' };
+    const files = (m: 'sleepy' | 'neutral' | 'happy') => avatarLayers(cfg, m).map((l) => l.file);
+    expect(files('neutral')).toEqual(['body-lilac', 'head-bonnet-alt']);
+    expect(files('happy')).toEqual(['body-lilac-happy', 'head-bonnet-alt']);
+    expect(files('sleepy')).toEqual(['body-lilac-sleepy', 'head-bonnet-alt']);
+  });
+
+  it('chaque humeur de chaque corps est dans le catalogue des rendus', () => {
+    const known = new Set(allLayerFiles());
+    for (const b of BODY_COLORS) for (const m of MOODS) expect(known.has(bodyFile(b, m))).toBe(true);
   });
 });

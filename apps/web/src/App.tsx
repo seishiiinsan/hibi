@@ -1,5 +1,5 @@
 import { isValidDay } from '@hibi/domain';
-import { useHashRoute, useKV } from './hooks';
+import { useHashRoute, useKV, usePersistUnlocks } from './hooks';
 import { AvatarScreen } from './screens/AvatarScreen';
 import { EntryScreen } from './screens/EntryScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
@@ -9,6 +9,7 @@ import { SettingsScreen } from './screens/SettingsScreen';
 export function App() {
   const authed = useKV<boolean>('authed', false);
   const route = useHashRoute();
+  usePersistUnlocks();
 
   if (authed === undefined) return null;
   if (!authed) return <LoginScreen />;

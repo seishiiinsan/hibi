@@ -1,5 +1,5 @@
 import { CalendarDays, Check, ChevronLeft, CloudOff, RefreshCw, Settings, Sprout, TriangleAlert } from 'lucide-react';
-import { useSyncInfo } from '../hooks';
+import { useNewUnlocks, useSyncInfo } from '../hooks';
 
 export function SyncBadge() {
   const { pending, status } = useSyncInfo();
@@ -20,13 +20,15 @@ export function SyncBadge() {
 }
 
 export function NavButtons() {
+  const fresh = useNewUnlocks().length;
   return (
     <div className="topbar-actions">
       <a href="#/historique" className="icon-btn" aria-label="Historique">
         <CalendarDays size={20} aria-hidden="true" />
       </a>
-      <a href="#/avatar" className="icon-btn" aria-label="Mon avatar">
+      <a href="#/avatar" className="icon-btn" aria-label={fresh ? `Mon avatar, ${fresh} nouveauté${fresh > 1 ? 's' : ''}` : 'Mon avatar'}>
         <Sprout size={20} aria-hidden="true" />
+        {fresh > 0 && <span className="dot" aria-hidden="true" />}
       </a>
       <a href="#/reglages" className="icon-btn" aria-label="Réglages">
         <Settings size={20} aria-hidden="true" />

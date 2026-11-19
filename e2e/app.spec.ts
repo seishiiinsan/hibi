@@ -16,6 +16,8 @@ test('session du soir en 2 taps : dev « comme la veille » + lecture, puis sync
   await page.getByRole('switch', { name: 'Lecture' }).click();
   await expect(page.getByTestId('day-score')).toHaveText('100 %');
   await expect(page.getByText('Journée parfaite !')).toBeVisible();
+  // L'avatar suit le score du jour : journée à 100 % → il est content.
+  await expect(page.locator('.companion .avatar-view')).toHaveClass(/mood-happy/);
   await expect(syncBadge(page)).toContainText('Synchronisé');
 });
 
@@ -58,9 +60,31 @@ test('heatmap : un tap ouvre l’historique', async ({ page }) => {
   await expect(page.locator('.history-row')).toHaveCount(30);
 });
 
+test('avatar : les objets se gagnent, les verrouillés disent quoi faire', async ({ page }) => {
+  await login(page);
+  await page.getByRole('link', { name: /^Mon avatar/ }).click();
+  // Gratuits dès le départ.
+  await expect(page.getByRole('button', { name: 'Sauge' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Pousse' })).toBeEnabled();
+  // Une base presque vide : la cape (10 journées parfaites) et l'oiseau (14 bonnes journées d'affilée) restent à gagner.
+  const cape = page.getByRole('button', { name: /^Cape/ });
+  await expect(cape).toBeDisabled();
+  await expect(cape).toHaveAccessibleName(/verrouillé : 10 journées parfaites/);
+  await expect(page.getByRole('button', { name: /^Oiseau/ })).toBeDisabled();
+});
+
 test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', async ({ page, context }) => {
   await login(page);
-  await page.getByRole('link', { name: 'Mon avatar' }).click();
+  // 45 journées parfaites d'affilée (injectées par l'API, comme une longue série) : tout se débloque.
+  // Ce test passe en dernier : il remplit l'historique de la base partagée par les autres.
+  const entries = Array.from({ length: 45 }, (_, i) => ({
+    day: new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10),
+    off: false, bedtime: '23:00', sleepH: 8, devMin: 60, reading: true, note: null, updatedAt: new Date().toISOString(),
+  }));
+  expect((await page.request.post('/api/sync', { data: { entries } })).status()).toBe(200);
+  await page.reload();
+  await page.getByRole('link', { name: /^Mon avatar/ }).click();
+  await expect(page.getByRole('button', { name: 'Cape' })).toBeEnabled();
   const stack = () => page.locator('.avatar-layer').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
 
   // Départ : corps sauge + pousse.
