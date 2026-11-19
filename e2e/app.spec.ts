@@ -64,7 +64,7 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
   const stack = () => page.locator('.avatar-layer').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
 
   // Départ : corps sauge + pousse.
-  expect(await stack()).toEqual(['body-sage.webp', 'head-pousse.webp']);
+  await expect.poll(stack).toEqual(['body-sage.webp', 'head-pousse.webp']);
 
   // Un seul objet par emplacement : le bonnet remplace la pousse ; sur un corps lilas il passe en variante « alt ».
   await page.getByRole('button', { name: 'Lilas' }).click();
@@ -72,15 +72,15 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
   await page.getByRole('button', { name: 'Lunettes de soleil' }).click();
   await page.getByRole('button', { name: 'Écharpe' }).click();
   await page.getByRole('button', { name: 'Cape' }).click();
-  expect(await stack()).toEqual(['back-cape.webp', 'body-lilac.webp', 'neck-echarpe.webp', 'head-bonnet-alt.webp', 'face-soleil.webp']);
+  // Le tap écrit en local puis l'écran se met à jour : on attend l'état, on ne le lit pas au vol.
+  await expect.poll(stack).toEqual(['back-cape.webp', 'body-lilac.webp', 'neck-echarpe.webp', 'head-bonnet-alt.webp', 'face-soleil.webp']);
 
   // Pet + accessoire ; retirer le pet retire l'accessoire.
   await page.getByRole('button', { name: 'Lapin' }).click();
   await page.getByRole('button', { name: 'Petit nœud' }).click();
-  expect((await stack())[0]).toBe('pet-lapin.webp');
-  expect(await stack()).toContain('petacc-lapin-noeud.webp');
+  await expect.poll(stack).toEqual(['pet-lapin.webp', 'petacc-lapin-noeud.webp', 'back-cape.webp', 'body-lilac.webp', 'neck-echarpe.webp', 'head-bonnet-alt.webp', 'face-soleil.webp']);
   await page.getByRole('group', { name: 'Compagnon' }).getByRole('button', { name: 'Aucun' }).click();
-  expect((await stack()).some((f) => f?.startsWith('pet'))).toBe(false);
+  await expect.poll(async () => (await stack()).some((f) => f?.startsWith('pet'))).toBe(false);
   await expect(page.getByText('Accessoire', { exact: true })).toHaveCount(0);
 
   // Les 32 calques sont bien servis (aucun 404).
@@ -98,5 +98,5 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
 
   // Après rechargement l'avatar est identique.
   await page.reload();
-  expect(await stack()).toContain('body-peach.webp');
+  await expect.poll(stack).toContain('body-peach.webp');
 });
