@@ -20,10 +20,16 @@ export function addDays(day: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** EF-02 : avant midi, l'écran ouvre la veille (coucher et sommeil de la nuit de J à J+1). */
+/** Heure à laquelle la journée bascule : avant 4 h, on est encore dans la soirée de la veille. */
+export const DAY_START_HOUR = 4;
+
+/**
+ * EF-02 : l'écran ouvre la ligne du jour. La nuit de J−1 à J est sur la ligne J, donc le matin
+ * on saisit la nuit sur la ligne du jour ; avant 4 h, on reste sur la veille (dev et lecture du soir).
+ */
 export function defaultDay(now: Date = new Date()): string {
   const { day, hour } = parisNow(now);
-  return hour < 12 ? addDays(day, -1) : day;
+  return hour < DAY_START_HOUR ? addDays(day, -1) : day;
 }
 
 /** Jours de `from` à `to` inclus, dans l'ordre. */

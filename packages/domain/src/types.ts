@@ -1,4 +1,4 @@
-/** Une ligne datée J : dev et lecture du jour J, coucher et sommeil de la nuit de J à J+1. */
+/** Une ligne datée J : coucher et sommeil de la nuit de J−1 à J, dev et lecture du jour J. */
 export interface Entry {
   day: string; // 'YYYY-MM-DD'
   off: boolean;

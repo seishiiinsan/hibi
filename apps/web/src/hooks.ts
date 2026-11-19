@@ -22,7 +22,7 @@ export function useSyncInfo() {
   return { pending, status };
 }
 
-/** Horloge qui se met à jour chaque minute et au retour au premier plan (bascule de midi, minuit). */
+/** Horloge qui se met à jour chaque minute et au retour au premier plan (bascule de la journée à 4 h). */
 export function useNow(): Date {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {

@@ -111,4 +111,4 @@ docker compose start app
 - **Un seul appareil** : le last-write-wins porte sur la ligne entière. Si deux appareils saisissent la même journée, des champs peuvent être écrasés.
 - **Blocage du login** : compteur en mémoire, 5 échecs par IP, puis blocage de 15 min de cette IP. Un redémarrage remet les compteurs à zéro, ce qui est acceptable pour un seul process. `trustProxy` est activé pour lire la vraie IP derrière Caddy.
 - **Sessions** : jeton aléatoire de 32 octets dans un cookie `HttpOnly; Secure; SameSite=Strict`. La base ne stocke que son SHA-256. L'échéance glisse à 30 jours, avec au plus une écriture par jour.
-- **Saisie rapide** : un champ vide affiche en pointillés la valeur de la veille (ou l'objectif). Un tap la valide, `−`/`+` l'ajustent. Avant midi, l'écran ouvre la veille.
+- **Saisie rapide** : un champ vide affiche en pointillés la valeur de la veille (ou l'objectif). Un tap la valide, `−`/`+` l'ajustent. L'écran ouvre la ligne du jour ; avant 4 h du matin, il reste sur la veille.

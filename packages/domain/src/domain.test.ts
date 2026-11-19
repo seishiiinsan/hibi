@@ -112,11 +112,14 @@ describe('score 7 jours', () => {
 });
 
 describe('dates', () => {
-  it('ouvre la veille avant midi, le jour même après (heure de Paris)', () => {
-    expect(defaultDay(new Date('2026-12-05T10:59:00Z'))).toBe('2026-12-04'); // 11:59 à Paris
-    expect(defaultDay(new Date('2026-12-05T11:00:00Z'))).toBe('2026-12-05'); // 12:00 à Paris
-    expect(defaultDay(new Date('2026-12-04T23:30:00Z'))).toBe('2026-12-04'); // 00:30 le 5 à Paris
-    expect(defaultDay(new Date('2026-07-05T09:59:00Z'))).toBe('2026-07-04'); // 11:59 heure d'été
+  it('ouvre la ligne du jour dès 4 h, la veille avant (heure de Paris)', () => {
+    expect(defaultDay(new Date('2026-12-05T06:30:00Z'))).toBe('2026-12-05'); // 7:30 à Paris : la nuit du 4 au 5 va sur le 5
+    expect(defaultDay(new Date('2026-12-05T21:00:00Z'))).toBe('2026-12-05'); // 22:00 à Paris
+    expect(defaultDay(new Date('2026-12-04T23:30:00Z'))).toBe('2026-12-04'); // 0:30 le 5 à Paris : encore la soirée du 4
+    expect(defaultDay(new Date('2026-12-05T02:59:00Z'))).toBe('2026-12-04'); // 3:59 à Paris
+    expect(defaultDay(new Date('2026-12-05T03:00:00Z'))).toBe('2026-12-05'); // 4:00 à Paris
+    expect(defaultDay(new Date('2026-07-05T01:59:00Z'))).toBe('2026-07-04'); // 3:59 heure d'été
+    expect(defaultDay(new Date('2026-07-05T02:00:00Z'))).toBe('2026-07-05'); // 4:00 heure d'été
   });
 
   it('additionne les jours à travers les changements de mois et d’heure', () => {

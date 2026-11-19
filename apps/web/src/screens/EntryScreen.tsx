@@ -45,7 +45,7 @@ function nextStep(e: Entry, score: number | null, s: Settings): string {
   if (e.off) return 'Journée off : elle ne compte ni dans le score ni dans les séries.';
   if (score === null) return 'Ta journée commence ici : un tap sur une valeur la garde.';
   if (score >= 0.9999) return 'Journée pleine. Bravo.';
-  if (e.bedtime === null || e.sleepH === null) return 'Encore ta nuit pour une journée pleine.';
+  if (e.bedtime === null || e.sleepH === null) return 'Il manque ta nuit : coucher et sommeil.';
   if (e.devMin !== null && e.devMin < s.devTargetMin) return `Encore ${s.devTargetMin - e.devMin} min de dev pour l'objectif.`;
   if (e.devMin === null) return 'Il manque ton temps de dev.';
   if (!e.reading) return 'Il manque la lecture.';
