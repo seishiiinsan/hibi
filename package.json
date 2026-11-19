@@ -1,0 +1,20 @@
+{
+  "name": "hibi",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev:api": "pnpm --filter @hibi/api dev",
+    "dev:web": "pnpm --filter @hibi/web dev",
+    "build": "pnpm --filter @hibi/web build && pnpm --filter @hibi/api build",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "e2e": "playwright test",
+    "hash-password": "pnpm --filter @hibi/api hash-password"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "typescript": "5.9.3"
+  }
+}

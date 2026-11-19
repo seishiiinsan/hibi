@@ -1,0 +1,26 @@
+# ~/habit-tracker/docker-compose.yml
+services:
+  app:
+    build: .
+    container_name: habit-tracker
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    environment:
+      ADMIN_USER: ${ADMIN_USER:?ADMIN_USER manquant dans .env}
+      # Optionnel : webhook n8n appelé quand une IP est bloquée (alerte mail).
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    volumes: ["habit-data:/data"]
+    secrets: [admin_password_hash]
+    networks: [proxy]
+volumes:
+  habit-data:
+secrets:
+  admin_password_hash:
+    file: ./secrets/admin_password_hash
+networks:
+  proxy:
+    external: true
