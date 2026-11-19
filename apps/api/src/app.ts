@@ -141,6 +141,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     },
   );
 
+  // Healthcheck Docker : public, sans log (sinon ~2 900 lignes par jour dans les logs).
+  app.get('/healthz', { logLevel: 'silent' }, async () => ({ ok: true }));
+
   await app.register(async (api) => {
     api.addHook('onRequest', requireSession);
 

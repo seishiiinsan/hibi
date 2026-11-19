@@ -194,5 +194,6 @@ describe('fichiers statiques', () => {
     expect(nav.headers['content-type']).toContain('text/html');
     expect((await app.inject({ method: 'GET', url: '/assets/old-123.js' })).statusCode).toBe(404);
     expect((await app.inject({ method: 'GET', url: '/api/nope' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/healthz' })).json()).toEqual({ ok: true });
   });
 });
