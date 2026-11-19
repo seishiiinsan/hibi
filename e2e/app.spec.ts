@@ -14,8 +14,9 @@ test('session du soir en 2 taps : dev « comme la veille » + lecture, puis sync
   await login(page);
   await page.getByRole('button', { name: /^Dev : valider 1 h/ }).click(); // valeur proposée = objectif
   await page.getByRole('switch', { name: 'Lecture' }).click();
-  await expect(page.locator('.score-lg')).toHaveText('100 %');
-  await expect(syncBadge(page)).toHaveText('Synchronisé');
+  await expect(page.getByTestId('day-score')).toHaveText('100 %');
+  await expect(page.getByText('Journée parfaite !')).toBeVisible();
+  await expect(syncBadge(page)).toContainText('Synchronisé');
 });
 
 test('saisie en mode avion, app rechargée hors ligne, envoyée une seule fois au retour du réseau', async ({ page, context }) => {
@@ -32,7 +33,7 @@ test('saisie en mode avion, app rechargée hors ligne, envoyée une seule fois a
 
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
-  await expect(syncBadge(page)).toHaveText('Synchronisé');
+  await expect(syncBadge(page)).toContainText('Synchronisé');
 
   const res = await page.request.post('/api/sync', { data: { entries: [] } });
   const { entries } = (await res.json()) as { entries: { day: string; sleepH: number; bedtime: string }[] };

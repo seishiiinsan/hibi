@@ -6,9 +6,14 @@ export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error';
 let running = false;
 let again = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
+let lastLocalEdit = 0;
+
+/** Millisecondes depuis la dernière saisie faite sur cet appareil (pour ne célébrer que ses propres gestes). */
+export const msSinceLocalEdit = () => Date.now() - lastLocalEdit;
 
 /** Écrit la modification en local tout de suite (EF-03), puis planifie la synchro. */
 export async function updateEntry(day: string, patch: Partial<Omit<Entry, 'day' | 'updatedAt'>>) {
+  lastLocalEdit = Date.now();
   await db.transaction('rw', db.entries, async () => {
     const current = (await db.entries.get(day)) ?? { ...blankEntry(day), dirty: 1 as const };
     // Toujours en UTC suffixé Z : le serveur compare les updatedAt comme des chaînes.

@@ -1,5 +1,8 @@
+import { Minus, Plus, X, type LucideIcon } from 'lucide-react';
+
 interface StepperProps {
   label: string;
+  icon: LucideIcon;
   value: number | null;
   /** Valeur proposée quand le champ est vide : celle de la veille, sinon l'objectif. Un tap la valide. */
   ghost: number;
@@ -15,7 +18,7 @@ interface StepperProps {
   free?: { type: 'time' | 'number'; toInput: (v: number) => string; fromInput: (s: string) => number | null };
 }
 
-export function Stepper({ label, value, ghost, ghostHint, step, min, max, wrap, format, onChange, free }: StepperProps) {
+export function Stepper({ label, icon: Icon, value, ghost, ghostHint, step, min, max, wrap, format, onChange, free }: StepperProps) {
   const span = max - min;
   const move = (dir: 1 | -1) => {
     let v = (value ?? ghost) + dir * step;
@@ -28,11 +31,12 @@ export function Stepper({ label, value, ghost, ghostHint, step, min, max, wrap, 
   return (
     <div className="field">
       <label className="field-label" htmlFor={id}>
+        <Icon size={18} aria-hidden="true" />
         {label}
       </label>
       <div className="stepper">
         <button type="button" className="step" aria-label={`${label} moins ${step}`} onClick={() => move(-1)}>
-          −
+          <Minus size={20} aria-hidden="true" />
         </button>
         {value === null ? (
           <button
@@ -80,7 +84,7 @@ export function Stepper({ label, value, ghost, ghostHint, step, min, max, wrap, 
           </output>
         )}
         <button type="button" className="step" aria-label={`${label} plus ${step}`} onClick={() => move(1)}>
-          +
+          <Plus size={20} aria-hidden="true" />
         </button>
       </div>
       <button
@@ -90,7 +94,7 @@ export function Stepper({ label, value, ghost, ghostHint, step, min, max, wrap, 
         onClick={() => onChange(null)}
         style={{ visibility: value === null ? 'hidden' : 'visible' }}
       >
-        ×
+        <X size={18} aria-hidden="true" />
       </button>
     </div>
   );

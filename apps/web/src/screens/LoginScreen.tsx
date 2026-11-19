@@ -1,3 +1,4 @@
+import { Lock } from 'lucide-react';
 import { useState } from 'react';
 import { login } from '../api';
 import { useSyncInfo } from '../hooks';
@@ -19,12 +20,12 @@ export function LoginScreen() {
 
   return (
     <div className="screen login">
-      <h1>Hibi</h1>
-      {pending > 0 && (
-        <p className="muted">
-          {pending} journée(s) en attente : elles seront envoyées après la connexion.
-        </p>
-      )}
+      <div className="login-brand">
+        <img src="/icon-192.png" alt="" width={64} height={64} />
+        <h1>Hibi</h1>
+        <p>Ta journée en quelques secondes.</p>
+      </div>
+      {pending > 0 && <p className="footnote">{pending} journée(s) en attente : elles partiront après la connexion.</p>}
       <form onSubmit={onSubmit}>
         <label>
           Identifiant
@@ -45,7 +46,8 @@ export function LoginScreen() {
             {error}
           </p>
         )}
-        <button type="submit" className="primary" disabled={busy}>
+        <button type="submit" className="btn btn-primary" disabled={busy}>
+          <Lock size={18} aria-hidden="true" />
           {busy ? 'Connexion…' : 'Se connecter'}
         </button>
       </form>

@@ -1,11 +1,14 @@
+import type { LucideIcon } from 'lucide-react';
+
 interface ToggleProps {
   label: string;
+  icon: LucideIcon;
   checked: boolean;
   onChange: (v: boolean) => void;
   variant?: 'primary' | 'muted';
 }
 
-export function Toggle({ label, checked, onChange, variant = 'primary' }: ToggleProps) {
+export function Toggle({ label, icon: Icon, checked, onChange, variant = 'primary' }: ToggleProps) {
   return (
     <button
       type="button"
@@ -14,9 +17,7 @@ export function Toggle({ label, checked, onChange, variant = 'primary' }: Toggle
       className={`toggle toggle-${variant}`}
       onClick={() => onChange(!checked)}
     >
-      <span className="toggle-track" aria-hidden="true">
-        <span className="toggle-thumb" />
-      </span>
+      <Icon size={20} aria-hidden="true" />
       {label}
     </button>
   );

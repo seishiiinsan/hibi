@@ -6,16 +6,18 @@ import {
   hhmmToMinutes,
   minutesToHHMM,
   parisNow,
-  sevenDayScore,
   streak,
   type Entry,
   type EntryIndex,
 } from '@hibi/domain';
-import { useEffect, useRef, useState } from 'react';
-import { ScoreBadge } from '../components/ScoreBadge';
+import { BedDouble, BookOpen, ChevronLeft, CodeXml, Coffee, Flame, Moon, Sparkles, StickyNote, type LucideIcon } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CelebrationToast, useCelebration } from '../components/Celebration';
+import { ScoreRing } from '../components/ScoreRing';
 import { Stepper } from '../components/Stepper';
 import { Toggle } from '../components/Toggle';
 import { TopBar } from '../components/TopBar';
+import { WeekStrip } from '../components/WeekStrip';
 import { formatDay, formatDayLong, formatHours, formatMinutes } from '../format';
 import { useEntries, useNow, useSettings } from '../hooks';
 import { updateEntry } from '../sync';
@@ -34,7 +36,7 @@ function previousValue<F extends Field>(index: EntryIndex, day: string, field: F
 export function EntryScreen({ day: routeDay }: { day?: string }) {
   const now = useNow();
   const settings = useSettings();
-  const { index, loading } = useEntries();
+  const { entries, index, loading } = useEntries();
 
   const today = parisNow(now).day;
   const yesterday = addDays(today, -1);
@@ -42,6 +44,17 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
   const day = routeDay ?? openDay;
   const entry = index.get(day) ?? blankEntry(day);
   const set = (patch: Partial<Entry>) => void updateEntry(day, patch);
+
+  const score = dayScore(index.get(day), settings);
+  const streaks = useMemo(
+    () => ({
+      lecture: streak(index, 'reading', openDay, settings),
+      dev: streak(index, 'dev', openDay, settings),
+      sommeil: streak(index, 'sleep', openDay, settings),
+    }),
+    [index, openDay, settings],
+  );
+  const celebration = useCelebration(!loading, day, score, streaks);
 
   const prevBedtime = previousValue(index, day, 'bedtime');
   const prevSleep = previousValue(index, day, 'sleepH');
@@ -52,63 +65,67 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
     window.location.hash = d === openDay ? '#/' : `#/jour/${d}`;
   };
   const isPast = day !== today && day !== yesterday;
-  const score = dayScore(index.get(day), settings);
-  const week = sevenDayScore(index, openDay, settings);
 
   if (loading) return <div className="screen" />;
 
   return (
     <div className={`screen entry${entry.off ? ' is-off' : ''}`}>
-      <header className="entry-head">
-        <TopBar />
-        <div className="day-switch" role="group" aria-label="Jour saisi">
-          {isPast ? (
-            <button type="button" className="day-btn active" onClick={() => goTo(openDay)}>
-              ‹ {formatDay(day)}
+      <CelebrationToast celebration={celebration} />
+      <TopBar />
+
+      <div className="segmented" role="group" aria-label="Jour saisi">
+        {isPast ? (
+          <button type="button" className="segment active segment-back" onClick={() => goTo(openDay)}>
+            <ChevronLeft size={18} aria-hidden="true" />
+            {formatDayLong(day)}
+          </button>
+        ) : (
+          [yesterday, today].map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={`segment${d === day ? ' active' : ''}`}
+              aria-pressed={d === day}
+              onClick={() => goTo(d)}
+            >
+              {d === today ? "Aujourd'hui" : 'Hier'}
+              <small>{formatDay(d)}</small>
             </button>
-          ) : (
-            [yesterday, today].map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={`day-btn${d === day ? ' active' : ''}`}
-                aria-pressed={d === day}
-                onClick={() => goTo(d)}
-              >
-                {d === today ? "Aujourd'hui" : 'Hier'}
-                <small>{formatDay(d)}</small>
-              </button>
-            ))
-          )}
-        </div>
-        <div className="summary">
-          <div className="summary-score">
-            <ScoreBadge score={score} />
-            <span className="summary-caption">{formatDayLong(day)}</span>
-          </div>
+          ))
+        )}
+      </div>
+
+      <section className="card hero" aria-label="Résumé">
+        <ScoreRing score={score} celebrate={celebration?.kind === 'perfect'} />
+        <div className="hero-side">
+          <span className="hero-title">{entry.off ? 'Journée Off' : formatDayLong(day)}</span>
           <ul className="streaks" aria-label="Séries en cours">
-            <li>
-              <b>{streak(index, 'reading', openDay, settings)}</b> lecture
-            </li>
-            <li>
-              <b>{streak(index, 'dev', openDay, settings)}</b> dev
-            </li>
-            <li>
-              <b>{streak(index, 'sleep', openDay, settings)}</b> sommeil
-            </li>
-            <li>
-              <ScoreBadge score={week} size="sm" /> 7 j
-            </li>
+            <StreakChip icon={BookOpen} value={streaks.lecture} label="lecture" />
+            <StreakChip icon={CodeXml} value={streaks.dev} label="dev" />
+            <StreakChip icon={BedDouble} value={streaks.sommeil} label="sommeil" />
           </ul>
         </div>
-      </header>
+      </section>
 
-      <section className="controls" aria-label="Saisie">
-        <p className="controls-hint">
-          Ligne du {formatDay(day)} : dev et lecture de ce jour, coucher et sommeil de la nuit suivante.
-        </p>
+      {entries && entries.length === 0 ? (
+        <section className="card empty" aria-label="Premiers pas">
+          <span className="empty-icon">
+            <Sparkles size={20} aria-hidden="true" />
+          </span>
+          <div>
+            <strong>Première journée</strong>
+            <p>Les valeurs en pointillés sont des propositions : un tap les valide, − et + les ajustent.</p>
+          </div>
+        </section>
+      ) : (
+        <WeekStrip index={index} settings={settings} endDay={openDay} activeDay={day} onOpen={goTo} />
+      )}
+
+      <section className="card controls" aria-label="Saisie">
+        <p className="controls-hint">Dev et lecture du jour · coucher et sommeil de la nuit</p>
         <Stepper
           label="Coucher"
+          icon={Moon}
           value={entry.bedtime === null ? null : hhmmToMinutes(entry.bedtime)}
           ghost={hhmmToMinutes(prevBedtime ?? settings.bedtimeTarget)}
           ghostHint={hint(prevBedtime)}
@@ -122,6 +139,7 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
         />
         <Stepper
           label="Sommeil"
+          icon={BedDouble}
           value={entry.sleepH}
           ghost={prevSleep ?? settings.sleepTargetH}
           ghostHint={hint(prevSleep)}
@@ -133,6 +151,7 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
         />
         <Stepper
           label="Dev"
+          icon={CodeXml}
           value={entry.devMin}
           ghost={prevDev ?? settings.devTargetMin}
           ghostHint={hint(prevDev)}
@@ -141,19 +160,28 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
           max={1440}
           format={formatMinutes}
           onChange={(v) => set({ devMin: v })}
-          free={{
-            type: 'number',
-            toInput: String,
-            fromInput: (s) => (/^\d+$/.test(s) ? Number(s) : null),
-          }}
+          free={{ type: 'number', toInput: String, fromInput: (s) => (/^\d+$/.test(s) ? Number(s) : null) }}
         />
         <div className="toggles">
-          <Toggle label="Lecture" checked={entry.reading} onChange={(reading) => set({ reading })} />
-          <Toggle label="Off" variant="muted" checked={entry.off} onChange={(off) => set({ off })} />
+          <Toggle label="Lecture" icon={BookOpen} checked={entry.reading} onChange={(reading) => set({ reading })} />
+          <Toggle label="Off" icon={Coffee} variant="muted" checked={entry.off} onChange={(off) => set({ off })} />
         </div>
         <NoteField key={day} initial={entry.note ?? ''} onSave={(note) => set({ note: note.trim() ? note : null })} />
       </section>
     </div>
+  );
+}
+
+function StreakChip({ icon: Icon, value, label }: { icon: LucideIcon; value: number; label: string }) {
+  const hot = value >= 3;
+  return (
+    <li className={`streak${hot ? ' hot' : ''}`}>
+      <span className="streak-top">
+        {hot ? <Flame size={14} aria-hidden="true" /> : <Icon size={14} aria-hidden="true" />}
+        <span className="streak-value num">{value}</span>
+      </span>
+      <span className="streak-label">{label}</span>
+    </li>
   );
 }
 
@@ -177,7 +205,8 @@ function NoteField({ initial, onSave }: { initial: string; onSave: (s: string) =
   if (!open) {
     return (
       <button type="button" className="note-open" onClick={() => setOpen(true)}>
-        + Note
+        <StickyNote size={16} aria-hidden="true" />
+        Ajouter une note
       </button>
     );
   }
