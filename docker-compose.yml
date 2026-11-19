@@ -10,7 +10,8 @@ services:
     security_opt: ["no-new-privileges:true"]
     tmpfs: [/tmp]
     environment:
-      ADMIN_USER: ${ADMIN_USER:?ADMIN_USER manquant dans .env}
+      # Vérifié au démarrage par l'app (elle s'arrête si vide) : le build n'a pas besoin de .env.
+      ADMIN_USER: ${ADMIN_USER:-}
       # Optionnel : webhook n8n appelé quand une IP est bloquée (alerte mail).
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
     volumes: ["habit-data:/data"]
