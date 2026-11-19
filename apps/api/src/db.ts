@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { DEFAULT_SETTINGS, type Entry, type Settings } from '@hibi/domain';
+import { DEFAULT_SETTINGS, normalizeAvatar, type AvatarConfig, type Entry, type Settings } from '@hibi/domain';
 
 export type DB = Database.Database;
 
@@ -27,6 +27,12 @@ CREATE TABLE IF NOT EXISTS entries (
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,                -- SHA-256 du jeton ; le jeton brut ne vit que dans le cookie
   expires_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS avatar (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  config TEXT NOT NULL,               -- JSON AvatarConfig
+  updated_at TEXT NOT NULL            -- ISO 8601 UTC, horodaté côté client : le plus récent gagne
 ) STRICT;
 
 INSERT OR IGNORE INTO settings (id) VALUES (1);
@@ -87,6 +93,12 @@ export function createRepo(db: DB) {
       sleep_target_h = @sleep_target_h, dev_target_min = @dev_target_min, weights = @weights
     WHERE id = 1`);
 
+  const getAvatarStmt = db.prepare<[], { config: string; updated_at: string }>('SELECT config, updated_at FROM avatar WHERE id = 1');
+  const putAvatarStmt = db.prepare(`
+    INSERT INTO avatar (id, config, updated_at) VALUES (1, @config, @updated_at)
+    ON CONFLICT (id) DO UPDATE SET config = excluded.config, updated_at = excluded.updated_at
+    WHERE excluded.updated_at > avatar.updated_at`);
+
   const upsertMany = db.transaction((entries: readonly Entry[]) => {
     for (const e of entries) {
       upsert.run({
@@ -116,6 +128,22 @@ export function createRepo(db: DB) {
         devTargetMin: r.dev_target_min,
         weights: JSON.parse(r.weights) as Settings['weights'],
       };
+    },
+    /** null tant que l'avatar n'a jamais été personnalisé. */
+    getAvatar(): { config: AvatarConfig; updatedAt: string } | null {
+      const r = getAvatarStmt.get();
+      if (!r) return null;
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(r.config);
+      } catch {
+        /* config illisible : retombe sur l'avatar par défaut */
+      }
+      return { config: normalizeAvatar(parsed), updatedAt: r.updated_at };
+    },
+    /** La config la plus récente gagne, comme pour les saisies. */
+    putAvatar(config: AvatarConfig, updatedAt: string) {
+      putAvatarStmt.run({ config: JSON.stringify(config), updated_at: updatedAt });
     },
     putSettings(s: Settings) {
       putSettingsStmt.run({

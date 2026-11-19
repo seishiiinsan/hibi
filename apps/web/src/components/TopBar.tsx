@@ -1,4 +1,4 @@
-import { CalendarDays, Check, ChevronLeft, CloudOff, RefreshCw, Settings, TriangleAlert } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, CloudOff, RefreshCw, Settings, Sprout, TriangleAlert } from 'lucide-react';
 import { useSyncInfo } from '../hooks';
 
 export function SyncBadge() {
@@ -24,6 +24,9 @@ export function NavButtons() {
     <div className="topbar-actions">
       <a href="#/historique" className="icon-btn" aria-label="Historique">
         <CalendarDays size={20} aria-hidden="true" />
+      </a>
+      <a href="#/avatar" className="icon-btn" aria-label="Mon avatar">
+        <Sprout size={20} aria-hidden="true" />
       </a>
       <a href="#/reglages" className="icon-btn" aria-label="Réglages">
         <Settings size={20} aria-hidden="true" />

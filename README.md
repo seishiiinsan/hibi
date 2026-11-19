@@ -11,8 +11,21 @@ Mono-utilisateur, auto-hébergée sur le VPS derrière le Caddy existant.
 | `apps/api` | Fastify + better-sqlite3 : auth, synchro, réglages, export CSV, sauvegardes ; sert aussi la PWA buildée. |
 | `apps/web` | Vite + React + vite-plugin-pwa + Dexie (IndexedDB) : saisie, historique 30 j, réglages. |
 | `e2e` | Tests Playwright, dont le scénario mode avion. |
+| `assets/3d` | Modèles Blender de l'avatar « Pousse », des pets et des cosmétiques ; le script génère aussi les calques `apps/web/public/avatar/*.webp`. |
 
 Le score n'est jamais stocké : il est recalculé depuis les saisies et les réglages. Changer un poids met donc tout l'historique à jour.
+
+## Avatar, pets et cosmétiques
+
+L'écran `#/avatar` personnalise l'avatar : couleur du corps, un objet par emplacement (tête, visage, cou, main, dos), un pet et son accessoire. Le catalogue et les règles de compatibilité sont dans `packages/domain/src/avatar.ts` : un seul objet par emplacement, un ordre d'empilement fixe, une variante de couleur automatique quand un objet se confondrait avec le corps, et tout accessoire de pet sans pet est retiré. Le choix est enregistré en local tout de suite (hors ligne compris), puis synchronisé ; le plus récent gagne.
+
+Les images viennent de Blender : un calque transparent par pièce, même caméra, le corps en masque pour que chaque objet passe devant ou derrière comme en 3D. Pour les régénérer après avoir touché aux modèles :
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender -b -P assets/3d/build_hibi_3d.py
+```
+
+Le test `apps/api` vérifie que chaque calque du catalogue existe ; le test du domaine passe en revue les ~19 000 combinaisons.
 
 ## Développement
 

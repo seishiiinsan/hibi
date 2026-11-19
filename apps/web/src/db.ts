@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type Entry, type Settings } from '@hibi/domain';
+import { DEFAULT_SETTINGS, type AvatarConfig, type Entry, type Settings } from '@hibi/domain';
 import Dexie, { type EntityTable } from 'dexie';
 
 /** dirty = 1 : modifiée hors ligne, pas encore confirmée par le serveur. */
@@ -25,6 +25,12 @@ export async function getKV<T>(key: string, fallback: T): Promise<T> {
   return ((await db.kv.get(key))?.value as T | undefined) ?? fallback;
 }
 export const setKV = (key: string, value: unknown) => db.kv.put({ key, value });
+
+/** Avatar tel que stocké (local d'abord, le plus récent gagne à la synchro). */
+export interface StoredAvatar {
+  config: AvatarConfig;
+  updatedAt: string; // ISO 8601 UTC
+}
 
 export const getSettings = () => getKV<Settings>('settings', DEFAULT_SETTINGS);
 

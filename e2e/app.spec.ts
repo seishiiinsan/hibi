@@ -57,3 +57,46 @@ test('heatmap : un tap ouvre l’historique', async ({ page }) => {
   await page.getByRole('button', { name: /^Activité des 18 dernières semaines/ }).click();
   await expect(page.locator('.history-row')).toHaveCount(30);
 });
+
+test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', async ({ page, context }) => {
+  await login(page);
+  await page.getByRole('link', { name: 'Mon avatar' }).click();
+  const stack = () => page.locator('.avatar-layer').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
+
+  // Départ : corps sauge + pousse.
+  expect(await stack()).toEqual(['body-sage.webp', 'head-pousse.webp']);
+
+  // Un seul objet par emplacement : le bonnet remplace la pousse ; sur un corps lilas il passe en variante « alt ».
+  await page.getByRole('button', { name: 'Lilas' }).click();
+  await page.getByRole('button', { name: 'Bonnet' }).click();
+  await page.getByRole('button', { name: 'Lunettes de soleil' }).click();
+  await page.getByRole('button', { name: 'Écharpe' }).click();
+  await page.getByRole('button', { name: 'Cape' }).click();
+  expect(await stack()).toEqual(['back-cape.webp', 'body-lilac.webp', 'neck-echarpe.webp', 'head-bonnet-alt.webp', 'face-soleil.webp']);
+
+  // Pet + accessoire ; retirer le pet retire l'accessoire.
+  await page.getByRole('button', { name: 'Lapin' }).click();
+  await page.getByRole('button', { name: 'Petit nœud' }).click();
+  expect((await stack())[0]).toBe('pet-lapin.webp');
+  expect(await stack()).toContain('petacc-lapin-noeud.webp');
+  await page.getByRole('group', { name: 'Compagnon' }).getByRole('button', { name: 'Aucun' }).click();
+  expect((await stack()).some((f) => f?.startsWith('pet'))).toBe(false);
+  await expect(page.getByText('Accessoire', { exact: true })).toHaveCount(0);
+
+  // Les 32 calques sont bien servis (aucun 404).
+  for (const f of await stack()) expect((await page.request.get(`/avatar/${f}`)).status()).toBe(200);
+
+  // Enregistré en local tout de suite (hors ligne), envoyé au retour du réseau.
+  await context.setOffline(true);
+  await page.getByRole('button', { name: 'Pêche' }).click();
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(syncBadge(page)).toContainText('Synchronisé');
+  const res = await page.request.get('/api/avatar');
+  const { config } = (await res.json()) as { config: { body: string; head: string } };
+  expect(config).toMatchObject({ body: 'peach', head: 'bonnet' });
+
+  // Après rechargement l'avatar est identique.
+  await page.reload();
+  expect(await stack()).toContain('body-peach.webp');
+});

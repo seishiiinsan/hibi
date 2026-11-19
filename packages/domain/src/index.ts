@@ -5,3 +5,4 @@ export * from './score.js';
 export * from './streaks.js';
 export * from './color.js';
 export * from './csv.js';
+export * from './avatar.js';

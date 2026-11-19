@@ -1,5 +1,5 @@
-import { blankEntry, type Entry, type Settings } from '@hibi/domain';
-import { db, setKV, stripLocal } from './db';
+import { blankEntry, normalizeAvatar, type AvatarConfig, type Entry, type Settings } from '@hibi/domain';
+import { db, getKV, setKV, stripLocal, type StoredAvatar } from './db';
 
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error';
 
@@ -22,6 +22,20 @@ export async function updateEntry(day: string, patch: Partial<Omit<Entry, 'day' 
   scheduleSync();
 }
 
+/**
+ * Modifie l'avatar à partir de sa valeur *actuelle en base* (pas d'une copie d'écran périmée : deux taps
+ * rapprochés s'additionnent au lieu de s'écraser), l'enregistre en local tout de suite (hors ligne compris),
+ * puis planifie la synchro.
+ */
+export async function editAvatar(change: (current: AvatarConfig) => AvatarConfig) {
+  await db.transaction('rw', db.kv, async () => {
+    const current = normalizeAvatar((await getKV<StoredAvatar | null>('avatar', null))?.config);
+    await setKV('avatar', { config: normalizeAvatar(change(current)), updatedAt: new Date().toISOString() } satisfies StoredAvatar);
+    await setKV('avatarDirty', true);
+  });
+  scheduleSync();
+}
+
 export function scheduleSync(delayMs = 600) {
   clearTimeout(timer);
   timer = setTimeout(() => void syncNow(), delayMs);
@@ -40,11 +54,12 @@ export async function syncNow(): Promise<void> {
   await setKV('syncStatus', 'syncing');
   try {
     const dirty = await db.entries.where('dirty').equals(1).toArray();
+    const avatarSent = (await getKV<boolean>('avatarDirty', false)) ? await getKV<StoredAvatar | null>('avatar', null) : null;
     const res = await fetch('/api/sync', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries: dirty.map(stripLocal) }),
+      body: JSON.stringify({ entries: dirty.map(stripLocal), ...(avatarSent ? { avatar: avatarSent } : {}) }),
     });
     if (res.status === 401) {
       await setKV('authed', false);
@@ -52,7 +67,12 @@ export async function syncNow(): Promise<void> {
       return;
     }
     if (!res.ok) throw new Error(`sync ${res.status}`);
-    const { entries, settings, user } = (await res.json()) as { entries: Entry[]; settings: Settings; user?: string };
+    const { entries, settings, avatar, user } = (await res.json()) as {
+      entries: Entry[];
+      settings: Settings;
+      avatar?: StoredAvatar | null;
+      user?: string;
+    };
     await db.transaction('rw', db.entries, db.kv, async () => {
       for (const remote of entries) {
         const local = await db.entries.get(remote.day);
@@ -62,6 +82,15 @@ export async function syncNow(): Promise<void> {
         }
       }
       await setKV('settings', settings);
+      if (avatar) {
+        // Même règle que les saisies : une modif locale plus récente que la réponse reste en file.
+        const local = await getKV<StoredAvatar | null>('avatar', null);
+        const localDirty = await getKV<boolean>('avatarDirty', false);
+        if (!local || !localDirty || avatar.updatedAt >= local.updatedAt) {
+          await setKV('avatar', { config: normalizeAvatar(avatar.config), updatedAt: avatar.updatedAt } satisfies StoredAvatar);
+          await setKV('avatarDirty', false);
+        }
+      }
       if (user) await setKV('username', user);
       await setKV('lastSyncAt', new Date().toISOString());
       await setKV('syncStatus', 'idle');

@@ -1,5 +1,6 @@
 import { isValidDay } from '@hibi/domain';
 import { useHashRoute, useKV } from './hooks';
+import { AvatarScreen } from './screens/AvatarScreen';
 import { EntryScreen } from './screens/EntryScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { LoginScreen } from './screens/LoginScreen';
@@ -13,6 +14,7 @@ export function App() {
   if (!authed) return <LoginScreen />;
 
   if (route === '/historique') return <HistoryScreen />;
+  if (route === '/avatar') return <AvatarScreen />;
   if (route === '/reglages') return <SettingsScreen />;
   const m = /^\/jour\/(\d{4}-\d{2}-\d{2})$/.exec(route);
   if (m && isValidDay(m[1])) return <EntryScreen key={m[1]} day={m[1]} />;

@@ -1,6 +1,6 @@
 import { hash } from '@node-rs/argon2';
-import type { Entry } from '@hibi/domain';
-import { mkdtempSync, readdirSync } from 'node:fs';
+import { DEFAULT_AVATAR, allLayerFiles, type AvatarConfig, type Entry } from '@hibi/domain';
+import { existsSync, mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -90,6 +90,7 @@ describe('auth', () => {
       ['POST', '/api/sync'],
       ['GET', '/api/settings'],
       ['PUT', '/api/settings'],
+      ['GET', '/api/avatar'],
       ['GET', '/api/export.csv'],
       ['POST', '/api/logout'],
     ] as const) {
@@ -195,5 +196,40 @@ describe('fichiers statiques', () => {
     expect((await app.inject({ method: 'GET', url: '/assets/old-123.js' })).statusCode).toBe(404);
     expect((await app.inject({ method: 'GET', url: '/api/nope' })).statusCode).toBe(401);
     expect((await app.inject({ method: 'GET', url: '/healthz' })).json()).toEqual({ ok: true });
+  });
+});
+
+describe('avatar', () => {
+  const T1 = '2026-12-01T20:00:00.000Z';
+  const T2 = '2026-12-01T21:00:00.000Z';
+  const cfg = (patch: Partial<AvatarConfig>): AvatarConfig => ({ ...DEFAULT_AVATAR, ...patch });
+
+  it('part vide, puis la config la plus récente gagne et revient dans la synchro', async () => {
+    const { app } = await setup();
+    const headers = await session(app);
+    const sync = (avatar?: { config: AvatarConfig; updatedAt: string }) =>
+      app.inject({ method: 'POST', url: '/api/sync', headers, payload: { entries: [], avatar } });
+
+    expect(((await sync()).json() as { avatar: unknown }).avatar).toBeNull();
+    const recent = { config: cfg({ body: 'lilac', head: 'bonnet', pet: 'lapin', petAccessory: 'noeud' }), updatedAt: T2 };
+    await sync(recent);
+    const stale = await sync({ config: cfg({ body: 'peach' }), updatedAt: T1 }); // vieille version rejouée : ignorée
+    expect((stale.json() as { avatar: unknown }).avatar).toEqual(recent);
+    expect((await app.inject({ method: 'GET', url: '/api/avatar', headers })).json()).toEqual(recent);
+  });
+
+  it('refuse une config hors catalogue, un objet dans le mauvais emplacement ou un accessoire sans pet', async () => {
+    const { app } = await setup();
+    const headers = await session(app);
+    for (const config of [cfg({ body: 'rouge' as never }), cfg({ head: 'echarpe' }), cfg({ petAccessory: 'noeud' })]) {
+      const res = await app.inject({ method: 'POST', url: '/api/sync', headers, payload: { entries: [], avatar: { config, updatedAt: T1 } } });
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
+  it('chaque calque du catalogue a son rendu dans apps/web/public/avatar', () => {
+    const dir = join(import.meta.dirname, '..', '..', 'web', 'public', 'avatar');
+    const missing = allLayerFiles().filter((f) => !existsSync(join(dir, `${f}.webp`)));
+    expect(missing).toEqual([]);
   });
 });

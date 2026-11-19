@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import fastifyCookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import { verify as argonVerify } from '@node-rs/argon2';
-import { entriesToCsv, validateEntry, validateSettings, type Entry, type Settings } from '@hibi/domain';
+import { entriesToCsv, isValidIsoUtc, validateAvatar, validateEntry, validateSettings, type AvatarConfig, type Entry, type Settings } from '@hibi/domain';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { SESSION_DAYS, createLoginGuard, createSessionStore, type LoginGuard } from './auth.js';
 import { createRepo, type DB } from './db.js';
@@ -61,6 +61,13 @@ const settingsSchema = {
       },
     },
   },
+} as const;
+
+const avatarSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['config', 'updatedAt'],
+  properties: { config: { type: 'object' }, updatedAt: { type: 'string' } },
 } as const;
 
 function safeEqual(a: string, b: string): boolean {
@@ -156,7 +163,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     });
 
     /** Pousse la file hors ligne, renvoie l'état complet (≈ 365 lignes par an : pas besoin de delta). */
-    api.post<{ Body: { entries: Entry[] } }>(
+    api.post<{ Body: { entries: Entry[]; avatar?: { config: AvatarConfig; updatedAt: string } } }>(
       '/api/sync',
       {
         schema: {
@@ -164,7 +171,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
             type: 'object',
             required: ['entries'],
             additionalProperties: false,
-            properties: { entries: { type: 'array', maxItems: 2000, items: entrySchema } },
+            properties: { entries: { type: 'array', maxItems: 2000, items: entrySchema }, avatar: avatarSchema },
           },
         },
       },
@@ -173,12 +180,19 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
           .map((e) => ({ day: e.day, errors: validateEntry(e) }))
           .filter((r) => r.errors.length > 0);
         if (invalid.length) return reply.code(400).send({ error: 'invalid_entries', invalid });
+        const { avatar } = req.body;
+        if (avatar && (validateAvatar(avatar.config).length > 0 || !isValidIsoUtc(avatar.updatedAt))) {
+          return reply.code(400).send({ error: 'invalid_avatar' });
+        }
         repo.upsertEntries(req.body.entries);
-        return { entries: repo.allEntries(), settings: repo.getSettings(), user: opts.adminUser };
+        if (avatar) repo.putAvatar(avatar.config, avatar.updatedAt);
+        return { entries: repo.allEntries(), settings: repo.getSettings(), avatar: repo.getAvatar(), user: opts.adminUser };
       },
     );
 
     api.get('/api/settings', async () => repo.getSettings());
+
+    api.get('/api/avatar', async () => repo.getAvatar());
 
     api.put<{ Body: Settings }>('/api/settings', { schema: { body: settingsSchema } }, async (req, reply) => {
       const errors = validateSettings(req.body);

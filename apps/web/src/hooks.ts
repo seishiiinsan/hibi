@@ -1,7 +1,7 @@
-import { DEFAULT_SETTINGS, indexEntries, type Settings } from '@hibi/domain';
+import { DEFAULT_AVATAR, DEFAULT_SETTINGS, indexEntries, normalizeAvatar, type AvatarConfig, type Settings } from '@hibi/domain';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
-import { db } from './db';
+import { db, type StoredAvatar } from './db';
 import type { SyncStatus } from './sync';
 
 export function useEntries() {
@@ -15,6 +15,12 @@ export function useKV<T>(key: string, fallback: T): T | undefined {
 }
 
 export const useSettings = (): Settings => useKV<Settings>('settings', DEFAULT_SETTINGS) ?? DEFAULT_SETTINGS;
+
+/** Avatar de l'utilisateur, toujours cohérent (normalisé), même hors ligne ou avant la première synchro. */
+export function useAvatar(): AvatarConfig {
+  const stored = useKV<StoredAvatar | null>('avatar', null);
+  return useMemo(() => (stored ? normalizeAvatar(stored.config) : DEFAULT_AVATAR), [stored]);
+}
 
 export function useSyncInfo() {
   const pending = useLiveQuery(() => db.entries.where('dirty').equals(1).count(), []) ?? 0;
