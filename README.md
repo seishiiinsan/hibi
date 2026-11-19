@@ -16,6 +16,8 @@ Le score n'est jamais stocké : il est recalculé depuis les saisies et les rég
 
 ## Développement
 
+Prérequis : Node 22 (`.nvmrc` ; les versions plus récentes n'ont pas de binaire précompilé pour better-sqlite3), pnpm via `corepack enable`, et `node-gyp` en global (`npm install -g node-gyp`), car better-sqlite3 se compile à l'installation.
+
 ```bash
 pnpm install
 ```
