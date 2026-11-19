@@ -18,8 +18,8 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#fbf8f3',
-        theme_color: '#fbf8f3',
+        background_color: '#eef3ee',
+        theme_color: '#eef3ee',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -27,7 +27,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,woff2}'],
         navigateFallback: 'index.html',
         // L'API n'est jamais mise en cache : la file hors ligne vit dans IndexedDB.
         navigateFallbackDenylist: [/^\/api\//],

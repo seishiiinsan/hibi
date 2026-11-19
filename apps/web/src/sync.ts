@@ -52,7 +52,7 @@ export async function syncNow(): Promise<void> {
       return;
     }
     if (!res.ok) throw new Error(`sync ${res.status}`);
-    const { entries, settings } = (await res.json()) as { entries: Entry[]; settings: Settings };
+    const { entries, settings, user } = (await res.json()) as { entries: Entry[]; settings: Settings; user?: string };
     await db.transaction('rw', db.entries, db.kv, async () => {
       for (const remote of entries) {
         const local = await db.entries.get(remote.day);
@@ -62,6 +62,7 @@ export async function syncNow(): Promise<void> {
         }
       }
       await setKV('settings', settings);
+      if (user) await setKV('username', user);
       await setKV('lastSyncAt', new Date().toISOString());
       await setKV('syncStatus', 'idle');
     });

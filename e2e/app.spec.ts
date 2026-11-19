@@ -51,3 +51,9 @@ test('historique : une journée passée s’ouvre et se modifie', async ({ page 
   await page.getByRole('link', { name: 'Historique' }).click();
   await expect(rows.nth(10)).toContainText('Off');
 });
+
+test('heatmap : un tap ouvre l’historique', async ({ page }) => {
+  await login(page);
+  await page.getByRole('button', { name: /^Activité des 18 dernières semaines/ }).click();
+  await expect(page.locator('.history-row')).toHaveCount(30);
+});

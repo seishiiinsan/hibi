@@ -20,7 +20,7 @@ export function ScoreRing({ score, size = 112, stroke = 10, celebrate = false, l
       aria-label={`${label} : ${score === null ? 'non calculé' : `${toPercent(score)} %`}`}
     >
       <svg width={size} height={size} aria-hidden="true">
-        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} style={{ stroke: 'var(--ink-6)' }} />
+        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} style={{ stroke: 'var(--sunken)' }} />
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -32,7 +32,7 @@ export function ScoreRing({ score, size = 112, stroke = 10, celebrate = false, l
         />
       </svg>
       <span className="ring-label" aria-hidden="true">
-        <span className="ring-value num" data-testid="day-score">
+        <span className="ring-value num">
           {score === null ? '—' : toPercent(score)}
           {score !== null && <small> %</small>}
         </span>

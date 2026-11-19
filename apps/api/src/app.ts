@@ -147,7 +147,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   await app.register(async (api) => {
     api.addHook('onRequest', requireSession);
 
-    api.get('/api/me', async () => ({ ok: true }));
+    api.get('/api/me', async () => ({ ok: true, user: opts.adminUser }));
 
     api.post('/api/logout', async (req, reply) => {
       sessions.destroy(req.cookies[COOKIE]);
@@ -174,7 +174,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
           .filter((r) => r.errors.length > 0);
         if (invalid.length) return reply.code(400).send({ error: 'invalid_entries', invalid });
         repo.upsertEntries(req.body.entries);
-        return { entries: repo.allEntries(), settings: repo.getSettings() };
+        return { entries: repo.allEntries(), settings: repo.getSettings(), user: opts.adminUser };
       },
     );
 

@@ -2,6 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { startBackgroundSync } from './sync';
+import '@fontsource/fredoka/latin-400.css';
+import '@fontsource/fredoka/latin-600.css';
 import './styles.css';
 
 // Demande un stockage persistant : limite la purge d'IndexedDB par le navigateur (risque Safari iOS).
