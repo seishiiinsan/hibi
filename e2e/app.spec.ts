@@ -91,10 +91,10 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
   await page.getByRole('button', { name: 'Pêche' }).click();
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
-  await expect(syncBadge(page)).toContainText('Synchronisé');
-  const res = await page.request.get('/api/avatar');
-  const { config } = (await res.json()) as { config: { body: string; head: string } };
-  expect(config).toMatchObject({ body: 'peach', head: 'bonnet' });
+  // Pas de badge de synchro sur cet écran : on attend que le serveur ait reçu la config.
+  await expect
+    .poll(async () => ((await (await page.request.get('/api/avatar')).json()) as { config: { body: string; head: string } } | null)?.config)
+    .toMatchObject({ body: 'peach', head: 'bonnet' });
 
   // Après rechargement l'avatar est identique.
   await page.reload();
