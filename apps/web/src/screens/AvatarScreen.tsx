@@ -5,16 +5,26 @@ import {
   ITEMS,
   PET_ACCESSORIES,
   PETS,
+  REQUIREMENTS,
   SLOTS,
+  bodyKey,
+  describeRequirement,
+  itemKey,
+  petAccessoryKey,
+  petKey,
+  progressLabel,
   setPet,
   setSlot,
   type AvatarConfig,
   type Slot,
+  type UnlockKey,
 } from '@hibi/domain';
-import { PawPrint, Palette, RotateCcw, Shirt } from 'lucide-react';
+import { Lock, PawPrint, Palette, RotateCcw, Shirt } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { AvatarView } from '../components/AvatarView';
 import { TopBar } from '../components/TopBar';
-import { useAvatar } from '../hooks';
+import { useAvatar, useKV, useProgress, useUnlocked } from '../hooks';
+import { setKV } from '../db';
 import { editAvatar } from '../sync';
 
 const SLOT_LABELS: Record<Slot, string> = {
@@ -27,15 +37,6 @@ const SLOT_LABELS: Record<Slot, string> = {
 // Ordre d'affichage : du haut vers le bas du personnage.
 const SLOT_ORDER: Slot[] = ['head', 'face', 'neck', 'held', 'back'];
 
-function Choice({ label, selected, onPick, swatch }: { label: string; selected: boolean; onPick: () => void; swatch?: string }) {
-  return (
-    <button type="button" className={`choice${selected ? ' on' : ''}`} aria-pressed={selected} onClick={onPick}>
-      {swatch && <span className="swatch" style={{ background: swatch }} aria-hidden="true" />}
-      {label}
-    </button>
-  );
-}
-
 const BODY_SWATCH: Record<(typeof BODY_COLORS)[number], string> = {
   sage: 'var(--t-sage)',
   lilac: 'var(--t-lilac)',
@@ -44,15 +45,67 @@ const BODY_SWATCH: Record<(typeof BODY_COLORS)[number], string> = {
   peach: 'var(--pot)',
 };
 
+interface ChoiceProps {
+  label: string;
+  selected: boolean;
+  onPick: () => void;
+  swatch?: string;
+  /** Clé de déblocage : si l'objet est verrouillé, la condition et l'avancement remplacent le geste. */
+  unlockKey?: UnlockKey;
+  isNew?: boolean;
+}
+
+function Choice({ label, selected, onPick, swatch, unlockKey, isNew }: ChoiceProps) {
+  const unlocked = useUnlocked();
+  const progress = useProgress();
+  const locked = unlockKey !== undefined && !unlocked.has(unlockKey);
+  const req = unlockKey ? REQUIREMENTS[unlockKey] : undefined;
+  if (locked && req) {
+    const have = progressLabel(req, progress);
+    return (
+      <button type="button" className="choice locked" disabled aria-label={`${label}, verrouillé : ${describeRequirement(req)}`}>
+        <Lock size={14} aria-hidden="true" />
+        <span className="choice-text">
+          {label}
+          <small>
+            {describeRequirement(req)}
+            {have ? ` · ${have}` : ''}
+          </small>
+        </span>
+      </button>
+    );
+  }
+  return (
+    <button type="button" className={`choice${selected ? ' on' : ''}`} aria-pressed={selected} onClick={onPick}>
+      {swatch && <span className="swatch" style={{ background: swatch }} aria-hidden="true" />}
+      {label}
+      {isNew && <span className="new-tag">Nouveau</span>}
+    </button>
+  );
+}
+
 export function AvatarScreen() {
   const cfg = useAvatar();
+  const unlocked = useUnlocked();
   const apply = (change: (current: AvatarConfig) => AvatarConfig) => void editAvatar(change);
+
+  // « Nouveau » = débloqué depuis la dernière visite. On fige l'état « déjà vu » à l'ouverture, puis tout est marqué comme vu.
+  // Rien n'est marqué avant la première synchro : sur un nouvel appareil, l'historique ne doit pas passer pour une nouveauté.
+  const seen = useKV<UnlockKey[] | null>('unlockedSeen', null);
+  const synced = useKV<string | null>('lastSyncAt', null);
+  const seenAtOpen = useRef<ReadonlySet<UnlockKey> | null>(null);
+  if (seenAtOpen.current === null && seen) seenAtOpen.current = new Set(seen);
+  useEffect(() => {
+    if (synced) void setKV('unlockedSeen', [...unlocked]);
+  }, [unlocked, synced]);
+  const fresh = (key: UnlockKey) => !!seenAtOpen.current && !seenAtOpen.current.has(key) && unlocked.has(key);
 
   return (
     <div className="screen">
       <TopBar title="Mon avatar" />
+      {/* Reste visible pendant qu'on fait défiler les cosmétiques. */}
       <section className="card avatar-stage" aria-label="Aperçu">
-        <AvatarView config={cfg} width={320} />
+        <AvatarView config={cfg} width={240} />
       </section>
 
       <section className="card section">
@@ -62,7 +115,15 @@ export function AvatarScreen() {
         </h2>
         <div className="choices" role="group" aria-label="Couleur">
           {BODY_COLORS.map((c) => (
-            <Choice key={c} label={BODY_LABELS[c]} swatch={BODY_SWATCH[c]} selected={cfg.body === c} onPick={() => apply((a) => ({ ...a, body: c }))} />
+            <Choice
+              key={c}
+              label={BODY_LABELS[c]}
+              swatch={BODY_SWATCH[c]}
+              selected={cfg.body === c}
+              unlockKey={bodyKey(c)}
+              isNew={fresh(bodyKey(c))}
+              onPick={() => apply((a) => ({ ...a, body: c }))}
+            />
           ))}
         </div>
       </section>
@@ -80,7 +141,14 @@ export function AvatarScreen() {
             <div className="choices" role="group" aria-labelledby={`slot-${slot}`}>
               <Choice label="Aucun" selected={cfg[slot] === null} onPick={() => apply((a) => setSlot(a, slot, null))} />
               {ITEMS.filter((i) => i.slot === slot).map((i) => (
-                <Choice key={i.id} label={i.label} selected={cfg[slot] === i.id} onPick={() => apply((a) => setSlot(a, slot, i.id))} />
+                <Choice
+                  key={i.id}
+                  label={i.label}
+                  selected={cfg[slot] === i.id}
+                  unlockKey={itemKey(i.id)}
+                  isNew={fresh(itemKey(i.id))}
+                  onPick={() => apply((a) => setSlot(a, slot, i.id))}
+                />
               ))}
             </div>
           </div>
@@ -95,7 +163,14 @@ export function AvatarScreen() {
         <div className="choices" role="group" aria-label="Compagnon">
           <Choice label="Aucun" selected={cfg.pet === null} onPick={() => apply((a) => setPet(a, null))} />
           {PETS.map((p) => (
-            <Choice key={p.id} label={p.label} selected={cfg.pet === p.id} onPick={() => apply((a) => setPet(a, p.id))} />
+            <Choice
+              key={p.id}
+              label={p.label}
+              selected={cfg.pet === p.id}
+              unlockKey={petKey(p.id)}
+              isNew={fresh(petKey(p.id))}
+              onPick={() => apply((a) => setPet(a, p.id))}
+            />
           ))}
         </div>
         {cfg.pet && (
@@ -106,7 +181,14 @@ export function AvatarScreen() {
             <div className="choices" role="group" aria-labelledby="slot-petacc">
               <Choice label="Aucun" selected={cfg.petAccessory === null} onPick={() => apply((a) => ({ ...a, petAccessory: null }))} />
               {PET_ACCESSORIES.map((a) => (
-                <Choice key={a.id} label={a.label} selected={cfg.petAccessory === a.id} onPick={() => apply((cur) => ({ ...cur, petAccessory: a.id }))} />
+                <Choice
+                  key={a.id}
+                  label={a.label}
+                  selected={cfg.petAccessory === a.id}
+                  unlockKey={petAccessoryKey(a.id)}
+                  isNew={fresh(petAccessoryKey(a.id))}
+                  onPick={() => apply((cur) => ({ ...cur, petAccessory: a.id }))}
+                />
               ))}
             </div>
           </div>

@@ -14,6 +14,7 @@ import {
 import { BedDouble, BookOpen, Check, ChevronLeft, CodeXml, Moon, StickyNote } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CelebrationToast, useCelebration } from '../components/Celebration';
+import { Companion } from '../components/Companion';
 import { Heatmap } from '../components/Heatmap';
 import { Pot } from '../components/Pot';
 import { NavButtons, SyncBadge } from '../components/TopBar';
@@ -140,6 +141,8 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
           </ul>
         </div>
       </section>
+
+      <Companion score={score} off={entry.off} perfect={score !== null && score >= 0.9999} />
 
       <Heatmap
         index={index}

@@ -131,6 +131,19 @@ export function setPet(cfg: AvatarConfig, pet: PetId | null): AvatarConfig {
   return normalizeAvatar({ ...cfg, pet, petAccessory: pet ? cfg.petAccessory : null });
 }
 
+/** Humeur de l'avatar : elle suit le score du jour, jamais stockée. */
+export const MOODS = ['sleepy', 'neutral', 'happy'] as const;
+export type AvatarMood = (typeof MOODS)[number];
+
+/** Off ou journée à plat → il dort ; rien de saisi → neutre ; bonne journée → content. */
+export function moodForScore(score: number | null, off = false): AvatarMood {
+  if (off) return 'sleepy';
+  if (score === null) return 'neutral';
+  if (score < 0.4) return 'sleepy';
+  if (score >= 0.8) return 'happy';
+  return 'neutral';
+}
+
 export interface AvatarLayer {
   /** Nom de fichier sans extension, sous /avatar/. */
   file: string;
@@ -141,20 +154,23 @@ export interface AvatarLayer {
 
 const Z: Record<AvatarLayer['kind'], number> = { pet: 0, petAccessory: 1, back: 2, body: 3, neck: 4, head: 5, face: 6, held: 7 };
 
+/** Le corps neutre garde son nom d'origine ; les autres humeurs ont un suffixe. */
+export const bodyFile = (body: BodyColor, mood: AvatarMood = 'neutral') => (mood === 'neutral' ? `body-${body}` : `body-${body}-${mood}`);
+
 /** Variante de couleur d'un objet sur un corps donné (« -alt » quand la couleur par défaut se confondrait). */
 export function variantFile(item: AvatarItem, body: BodyColor): string {
   return `${item.slot}-${item.id}${item.altOn?.includes(body) ? '-alt' : ''}`;
 }
 
 /** Calques à empiler, du fond vers l'avant, pour une configuration (normalisée en entrée). */
-export function avatarLayers(input: unknown): AvatarLayer[] {
+export function avatarLayers(input: unknown, mood: AvatarMood = 'neutral'): AvatarLayer[] {
   const cfg = normalizeAvatar(input);
   const layers: AvatarLayer[] = [];
   if (cfg.pet) {
     layers.push({ file: `pet-${cfg.pet}`, z: Z.pet, kind: 'pet' });
     if (cfg.petAccessory) layers.push({ file: `petacc-${cfg.pet}-${cfg.petAccessory}`, z: Z.petAccessory, kind: 'petAccessory' });
   }
-  layers.push({ file: `body-${cfg.body}`, z: Z.body, kind: 'body' });
+  layers.push({ file: bodyFile(cfg.body, mood), z: Z.body, kind: 'body' });
   for (const slot of SLOTS) {
     const id = cfg[slot];
     const item = id ? ITEMS.find((i) => i.id === id && i.slot === slot) : undefined;
@@ -167,7 +183,7 @@ export function avatarLayers(input: unknown): AvatarLayer[] {
 export function allLayerFiles(): string[] {
   const files = new Set<string>();
   for (const body of BODY_COLORS) {
-    files.add(`body-${body}`);
+    for (const mood of MOODS) files.add(bodyFile(body, mood));
     for (const item of ITEMS) files.add(variantFile(item, body));
   }
   for (const p of PETS) {

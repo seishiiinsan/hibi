@@ -166,10 +166,34 @@ def avatar_body():
     for s in (-1, 1):
         part(sphere("bras", "sage", (s * 0.56, -0.02, 0.58), (0.14, 0.14, 0.26), p, rot=(0, s * 0.35, 0)), "body")
         part(sphere("pied", "sage", (s * 0.24, -0.08, 0.06), (0.2, 0.26, 0.11), p), "feet")
-        sphere("oeil", "ink", (s * 0.2, -0.45, 0.88), (0.075, 0.045, 0.086), p)
-        sphere("reflet", "white", (s * 0.2 + 0.022, -0.48, 0.92), (0.021, 0.021, 0.021), p)
         part(sphere("joue", "pot", (s * 0.34, -0.44, 0.76), (0.09, 0.036, 0.054), p), "blush")
-    sphere("bouche", "ink", (0, -0.5, 0.74), (0.07, 0.03, 0.035), p)
+    return p
+
+
+MOODS = ["sleepy", "neutral", "happy"]
+
+
+def avatar_face(mood):
+    """Yeux et bouche d'une humeur ; le reste du visage (joues) fait partie du corps."""
+    p = root(f"Avatar_Visage_{mood}", A)
+    for s in (-1, 1):
+        x = s * 0.2
+        if mood == "sleepy":      # yeux clos, bouche toute petite
+            sphere("paupiere", "ink", (x, -0.45, 0.87), (0.085, 0.03, 0.02), p, rot=(0, s * 0.12, 0))
+        elif mood == "happy":     # grands yeux brillants
+            sphere("oeil", "ink", (x, -0.45, 0.88), (0.085, 0.05, 0.1), p)
+            sphere("reflet", "white", (x + 0.026, -0.485, 0.925), (0.025, 0.025, 0.025), p)
+            sphere("reflet2", "white", (x - 0.02, -0.485, 0.85), (0.012, 0.012, 0.012), p)
+        else:
+            sphere("oeil", "ink", (x, -0.45, 0.88), (0.075, 0.045, 0.086), p)
+            sphere("reflet", "white", (x + 0.022, -0.48, 0.92), (0.021, 0.021, 0.021), p)
+    if mood == "sleepy":
+        sphere("bouche", "ink", (0, -0.5, 0.73), (0.035, 0.025, 0.014), p)
+    elif mood == "happy":         # bouche ouverte, langue
+        sphere("bouche", "ink", (0, -0.5, 0.735), (0.105, 0.035, 0.065), p)
+        sphere("langue", "pot", (0, -0.52, 0.71), (0.055, 0.02, 0.03), p)
+    else:
+        sphere("bouche", "ink", (0, -0.5, 0.74), (0.07, 0.03, 0.035), p)
     return p
 
 
@@ -444,13 +468,15 @@ def main():
 
     pet_bows = {n: pet_bow(n) for n in pets}
 
-    for c in BODIES:  # un calque de corps par couleur, sans holdout
+    faces = {m: avatar_face(m) for m in MOODS}
+    for c in BODIES:  # un calque de corps par couleur et par humeur, sans holdout
         paint_body(c)
-        render(f"body-{c}", [body], [])
+        for m in MOODS:
+            render(f"body-{c}" + ("" if m == "neutral" else f"-{m}"), [body, faces[m]], [])
     paint_body("sage")
 
     for name, obj in built:  # le corps de l'avatar masque ce qui passe derrière
-        render(name, [obj], [body])
+        render(name, [obj], [body, faces["neutral"]])
 
     for n, p in pets.items():
         render(f"pet-{n}", [p], [])
