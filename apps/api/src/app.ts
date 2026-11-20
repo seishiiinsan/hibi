@@ -8,6 +8,7 @@ import { entriesToCsv, isValidIsoUtc, validateAvatar, validateEntry, validateSet
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { SESSION_DAYS, createLoginGuard, createSessionStore, type LoginGuard } from './auth.js';
 import { createRepo, type DB } from './db.js';
+import { REMINDER_TIME, broadcast, type PushSender } from './reminder.js';
 
 export interface AppOptions {
   db: DB;
@@ -18,6 +19,8 @@ export interface AppOptions {
   loginGuard?: LoginGuard;
   /** Appelé quand une IP est bloquée (alerte mail via n8n, par ex.). */
   onLoginBlocked?: (ip: string) => void;
+  /** Rappel du soir : clé publique VAPID donnée aux appareils, et l'expéditeur (remplacé dans les tests). */
+  push?: { publicKey: string; send: PushSender };
   logger?: boolean;
 }
 
@@ -68,6 +71,20 @@ const avatarSchema = {
   additionalProperties: false,
   required: ['config', 'updatedAt'],
   properties: { config: { type: 'object' }, updatedAt: { type: 'string' } },
+} as const;
+
+const subscriptionSchema = {
+  type: 'object',
+  required: ['endpoint', 'keys'],
+  properties: {
+    // Les services de push (Apple, Google, Mozilla) sont tous en HTTPS.
+    endpoint: { type: 'string', pattern: '^https://', maxLength: 2000 },
+    keys: {
+      type: 'object',
+      required: ['p256dh', 'auth'],
+      properties: { p256dh: { type: 'string', maxLength: 200 }, auth: { type: 'string', maxLength: 100 } },
+    },
+  },
 } as const;
 
 function safeEqual(a: string, b: string): boolean {
@@ -201,6 +218,51 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       return repo.getSettings();
     });
 
+    // ───── Rappel du soir (Web Push) ─────
+    const push = opts.push;
+    api.get('/api/push', async (_req, reply) => {
+      if (!push) return reply.code(503).send({ error: 'push_unavailable' });
+      return { publicKey: push.publicKey, time: repo.getReminder().time, devices: repo.listSubscriptions().length };
+    });
+
+    api.post<{ Body: { endpoint: string; keys: { p256dh: string; auth: string } } }>(
+      '/api/push/subscribe',
+      { schema: { body: subscriptionSchema } },
+      async (req, reply) => {
+        if (!push) return reply.code(503).send({ error: 'push_unavailable' });
+        repo.putSubscription({ endpoint: req.body.endpoint, keys: req.body.keys });
+        return { devices: repo.listSubscriptions().length };
+      },
+    );
+
+    api.post<{ Body: { endpoint: string } }>(
+      '/api/push/unsubscribe',
+      { schema: { body: { type: 'object', required: ['endpoint'], properties: { endpoint: { type: 'string', maxLength: 2000 } } } } },
+      async (req) => {
+        repo.deleteSubscription(req.body.endpoint);
+        return { devices: repo.listSubscriptions().length };
+      },
+    );
+
+    api.put<{ Body: { time: string } }>(
+      '/api/push/time',
+      { schema: { body: { type: 'object', required: ['time'], properties: { time: { type: 'string', pattern: REMINDER_TIME.source } } } } },
+      async (req) => {
+        repo.setReminderTime(req.body.time);
+        return { time: repo.getReminder().time };
+      },
+    );
+
+    api.post('/api/push/test', async (req, reply) => {
+      if (!push) return reply.code(503).send({ error: 'push_unavailable' });
+      return broadcast(
+        repo,
+        push.send,
+        { title: 'Hibi', body: 'Les rappels du soir arrivent bien ici.', tag: 'hibi-test', url: '/' },
+        (msg, err) => req.log.warn({ err }, msg),
+      );
+    });
+
     api.get('/api/export.csv', async (_req, reply) => {
       const csv = entriesToCsv(repo.allEntries(), repo.getSettings());
       const stamp = new Date().toISOString().slice(0, 10);
@@ -216,7 +278,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       root: opts.webDir,
       wildcard: false,
       setHeaders(res, path) {
-        const noCache = /(index\.html|sw\.js|registerSW\.js|manifest\.webmanifest)$/.test(path);
+        const noCache = /(index\.html|sw\.js|push-sw\.js|registerSW\.js|manifest\.webmanifest)$/.test(path);
         res.header('Cache-Control', noCache ? 'no-cache' : 'public, max-age=31536000, immutable');
       },
     });

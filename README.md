@@ -29,6 +29,15 @@ Les images viennent de Blender : un calque transparent par pièce, même caméra
 
 Le test `apps/api` vérifie que chaque calque du catalogue existe ; le test du domaine passe en revue les ~19 000 combinaisons.
 
+## Rappel du soir
+
+Réglages → « Rappel du soir » abonne l'appareil aux notifications Web Push. L'heure (12:00–23:59, heure de Paris) est commune à tous les appareils. Chaque minute, l'API vérifie si l'heure est passée : une fois par jour au plus, elle envoie « Il manque dev et lecture. » (ou « Ta journée n'est pas encore saisie ») s'il manque quelque chose dans la journée en cours, et rien si elle est complète ou Off. Un rappel manqué pendant un redémarrage part dès le retour du conteneur, le jour même.
+
+- Les clés VAPID sont créées au premier démarrage et stockées dans la base (table `vapid`) : elles suivent les sauvegardes. Les régénérer désabonne tous les appareils.
+- Sur iPhone, le push n'existe que dans l'app ajoutée à l'écran d'accueil (iOS 16.4+).
+- `PUSH_SUBJECT` (optionnel) : le contact `mailto:` ou `https:` transmis aux services de push. Apple refuse `localhost`.
+- Les abonnements expirés (404/410) sont retirés automatiquement ; « Envoyer un test » vérifie la chaîne complète.
+
 ## Développement
 
 Prérequis : Node 22 (`.nvmrc` ; les versions plus récentes n'ont pas de binaire précompilé pour better-sqlite3), pnpm via `corepack enable`, et `node-gyp` en global (`npm install -g node-gyp`), car better-sqlite3 se compile à l'installation.
@@ -75,7 +84,7 @@ pnpm build && pnpm e2e
    ```
 
    Sans Node sur le VPS, on peut le générer ailleurs et copier le fichier.
-3. Créer `.env` avec `ADMIN_USER=gabin`, plus `ALERT_WEBHOOK_URL=` si le webhook n8n d'alerte existe.
+3. Créer `.env` avec `ADMIN_USER=gabin`, plus `ALERT_WEBHOOK_URL=` si le webhook n8n d'alerte existe, et `PUSH_SUBJECT=mailto:…` si besoin (rappel du soir).
 4. Lancer :
 
    ```bash

@@ -7,7 +7,8 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { createLoginGuard } from '../src/auth.js';
 import { runBackup } from '../src/backup.js';
-import { openDb } from '../src/db.js';
+import { createRepo, openDb, type PushSubscriptionRecord } from '../src/db.js';
+import { createReminder, missingFields, reminderMessage, type PushMessage } from '../src/reminder.js';
 
 let passwordHash: string;
 beforeAll(async () => {
@@ -19,7 +20,7 @@ afterEach(async () => {
   while (apps.length) await apps.pop()!.close();
 });
 
-async function setup(opts: { now?: () => number; onLoginBlocked?: (ip: string) => void } = {}) {
+async function setup(opts: { now?: () => number; onLoginBlocked?: (ip: string) => void; sent?: PushMessage[] } = {}) {
   const db = openDb(':memory:');
   const app = await buildApp({
     db,
@@ -28,6 +29,7 @@ async function setup(opts: { now?: () => number; onLoginBlocked?: (ip: string) =
     secureCookie: true,
     loginGuard: createLoginGuard({ now: opts.now }),
     onLoginBlocked: opts.onLoginBlocked,
+    push: { publicKey: 'BPUBLIC', send: async (_sub, m) => void opts.sent?.push(m) },
   });
   apps.push(app);
   return { app, db };
@@ -231,5 +233,80 @@ describe('avatar', () => {
     const dir = join(import.meta.dirname, '..', '..', 'web', 'public', 'avatar');
     const missing = allLayerFiles().filter((f) => !existsSync(join(dir, `${f}.webp`)));
     expect(missing).toEqual([]);
+  });
+});
+
+describe('rappel du soir', () => {
+  const sub = (n: number): PushSubscriptionRecord => ({
+    endpoint: `https://push.example/${n}`,
+    keys: { p256dh: 'p'.repeat(20), auth: 'a'.repeat(16) },
+  });
+
+  it('abonne un appareil, règle l’heure (12:00–23:59 seulement) et envoie un test', async () => {
+    const sent: PushMessage[] = [];
+    const { app } = await setup({ sent });
+    const headers = await session(app);
+    expect((await app.inject({ method: 'GET', url: '/api/push' })).statusCode).toBe(401);
+
+    const sub1 = await app.inject({ method: 'POST', url: '/api/push/subscribe', headers, payload: sub(1) });
+    expect(sub1.json()).toEqual({ devices: 1 });
+    expect((await app.inject({ method: 'POST', url: '/api/push/subscribe', headers, payload: sub(1) })).json()).toEqual({ devices: 1 });
+    expect(
+      (await app.inject({ method: 'POST', url: '/api/push/subscribe', headers, payload: { ...sub(2), endpoint: 'http://evil' } })).statusCode,
+    ).toBe(400);
+
+    expect((await app.inject({ method: 'PUT', url: '/api/push/time', headers, payload: { time: '21:30' } })).json()).toEqual({ time: '21:30' });
+    expect((await app.inject({ method: 'PUT', url: '/api/push/time', headers, payload: { time: '08:00' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'GET', url: '/api/push', headers })).json()).toEqual({ publicKey: 'BPUBLIC', time: '21:30', devices: 1 });
+
+    expect((await app.inject({ method: 'POST', url: '/api/push/test', headers })).json()).toEqual({ sent: 1, removed: 0 });
+    expect(sent).toHaveLength(1);
+
+    expect((await app.inject({ method: 'POST', url: '/api/push/unsubscribe', headers, payload: { endpoint: sub(1).endpoint } })).json()).toEqual({
+      devices: 0,
+    });
+  });
+
+  it('une fois par jour, après l’heure, seulement s’il manque quelque chose ; retire les abonnements expirés', async () => {
+    const db = openDb(':memory:');
+    const repo = createRepo(db);
+    repo.putSubscription(sub(1));
+    repo.putSubscription(sub(2));
+    const sent: { endpoint: string; m: PushMessage }[] = [];
+    let now = new Date('2026-11-20T20:59:00Z'); // 21:59 à Paris
+    const reminder = createReminder({
+      repo,
+      now: () => now,
+      log: () => undefined,
+      send: async (s, m) => {
+        if (s.endpoint.endsWith('/2')) throw Object.assign(new Error('gone'), { statusCode: 410 });
+        sent.push({ endpoint: s.endpoint, m });
+      },
+    });
+
+    await reminder.tick();
+    expect(sent).toHaveLength(0); // avant 22:00
+
+    repo.upsertEntries([entry('2026-11-20', '2026-11-20T08:00:00.000Z', { bedtime: '23:30', sleepH: 8 })]);
+    now = new Date('2026-11-20T21:05:00Z'); // 22:05
+    await reminder.tick();
+    expect(sent.map((x) => x.m.body)).toEqual(['Il manque dev et lecture.']);
+    expect(repo.listSubscriptions().map((x) => x.endpoint)).toEqual(['https://push.example/1']); // 410 retiré
+
+    await reminder.tick();
+    expect(sent).toHaveLength(1); // pas deux fois le même jour
+
+    // Le lendemain, journée Off : pas de rappel.
+    repo.upsertEntries([entry('2026-11-21', '2026-11-21T08:00:00.000Z', { off: true })]);
+    now = new Date('2026-11-21T21:30:00Z');
+    await reminder.tick();
+    expect(sent).toHaveLength(1);
+  });
+
+  it('formule ce qui manque', () => {
+    expect(missingFields(undefined)).toHaveLength(4);
+    expect(reminderMessage(missingFields(undefined)).body).toBe("Ta journée n'est pas encore saisie : 15 secondes ?");
+    expect(reminderMessage(['lecture']).body).toBe('Il manque lecture.');
+    expect(reminderMessage(['coucher', 'dev', 'lecture']).body).toBe('Il manque coucher, dev et lecture.');
   });
 });

@@ -32,6 +32,8 @@ export default defineConfig({
         // L'API n'est jamais mise en cache : la file hors ligne vit dans IndexedDB.
         navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
+        // Rappel du soir : réception des notifications push (public/push-sw.js).
+        importScripts: ['push-sw.js'],
         clientsClaim: true,
         skipWaiting: true,
       },

@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { buildApp } from './app.js';
 import { scheduleBackups } from './backup.js';
-import { openDb } from './db.js';
+import { createRepo, openDb } from './db.js';
+import { createReminder, generateVapidKeys, webPushSender } from './reminder.js';
 
 const env = process.env;
 const dataDir = env.DATA_DIR ?? '/data';
@@ -15,6 +16,12 @@ if (!adminPasswordHash.startsWith('$argon2id$')) throw new Error(`${hashFile} ne
 const db = openDb(join(dataDir, 'hibi.db'));
 const alertUrl = env.ALERT_WEBHOOK_URL;
 
+// Rappel du soir : clés VAPID créées au premier démarrage et gardées en base.
+const repo = createRepo(db);
+const vapid = repo.vapidKeys(generateVapidKeys);
+// Apple refuse les sujets en localhost : une adresse ou une URL réelle, modifiable par PUSH_SUBJECT.
+const sendPush = webPushSender(vapid, env.PUSH_SUBJECT || 'mailto:hibi@users.noreply.github.com');
+
 const app = await buildApp({
   db,
   adminUser,
@@ -22,6 +29,7 @@ const app = await buildApp({
   secureCookie: env.NODE_ENV === 'production',
   webDir: resolve(env.WEB_DIR ?? new URL('../../web/dist', import.meta.url).pathname),
   logger: true,
+  push: { publicKey: vapid.publicKey, send: sendPush },
   onLoginBlocked: (ip) => {
     if (!alertUrl) return;
     fetch(alertUrl, {
@@ -37,8 +45,15 @@ const stopBackups = scheduleBackups(db, join(dataDir, 'backups'), Number(env.BAC
   err ? app.log.error({ err }, msg) : app.log.info(msg),
 );
 
+const stopReminder = createReminder({
+  repo,
+  send: sendPush,
+  log: (msg, err) => (err ? app.log.error({ err }, msg) : app.log.info(msg)),
+}).start();
+
 const shutdown = async () => {
   stopBackups();
+  stopReminder();
   await app.close();
   db.close();
   process.exit(0);
