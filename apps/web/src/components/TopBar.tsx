@@ -14,7 +14,7 @@ export function SyncBadge() {
   return (
     <span className={`sync sync-${tone}`} role="status">
       <Icon size={12} aria-hidden="true" />
-      {text}
+      <span className="sync-text">{text}</span>
     </span>
   );
 }
