@@ -124,3 +124,13 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
   await page.reload();
   await expect.poll(stack).toContain('body-peach.webp');
 });
+
+test('accueil : tout tient dans l’écran, sans défilement', async ({ page }) => {
+  await login(page);
+  const overflow = () => page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+  expect(await overflow()).toBeLessThanOrEqual(0);
+  await page.getByRole('button', { name: /^Dev : valider 1 h/ }).click();
+  await page.getByRole('switch', { name: 'Lecture' }).click();
+  await expect(page.getByTestId('day-score')).toHaveText('100 %');
+  expect(await overflow()).toBeLessThanOrEqual(0);
+});

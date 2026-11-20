@@ -90,7 +90,7 @@ export function Heatmap({
       onContextMenu={(e) => e.preventDefault()}
     >
       <span className="heat-head">
-        <span>Ces {WEEKS} dernières semaines</span>
+        <span>{WEEKS} dernières semaines</span>
         <span>
           7 derniers jours : <b className="num">{week === null ? '—' : `${toPercent(week)} %`}</b>
         </span>
@@ -115,15 +115,6 @@ export function Heatmap({
             />
           ))}
         </span>
-      </span>
-      <span className="heat-legend" aria-hidden="true">
-        <span>moins</span>
-        <i style={{ background: 'var(--h-none)' }} />
-        <i style={{ background: 'var(--h-1)' }} />
-        <i style={{ background: 'var(--h-2)' }} />
-        <i style={{ background: 'var(--h-3)' }} />
-        <i style={{ background: 'var(--h-4)' }} />
-        <span>100 %</span>
       </span>
       {tip && (
         <span className="heat-tip" style={{ left: tip.x, top: tip.y }} role="status">

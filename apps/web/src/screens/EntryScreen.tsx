@@ -11,10 +11,10 @@ import {
   type EntryIndex,
   type Settings,
 } from '@hibi/domain';
-import { BedDouble, BookOpen, Check, ChevronLeft, CodeXml, Moon, StickyNote } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { BedDouble, BookOpen, Check, ChevronLeft, CodeXml, Moon } from 'lucide-react';
+import { useMemo } from 'react';
 import { CelebrationToast, useCelebration } from '../components/Celebration';
-import { Companion } from '../components/Companion';
+import { Companion, HeroMessage } from '../components/Companion';
 import { Heatmap } from '../components/Heatmap';
 import { Pot } from '../components/Pot';
 import { NavButtons, SyncBadge } from '../components/TopBar';
@@ -124,10 +124,10 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
         <SyncBadge />
       </div>
 
-      <section className="hero" aria-label="Résumé">
-        <Pot score={score} celebrate={celebration?.kind === 'perfect'} />
-        <div className="hero-side">
-          <p className="hero-msg">{nextStep(entry, score, settings)}</p>
+      <section className="card hero" aria-label="Résumé">
+        <div className="hero-scene">
+          <Companion score={score} off={entry.off} perfect={score !== null && score >= 0.9999} />
+          <Pot score={score} size={72} celebrate={celebration?.kind === 'perfect'} />
           <ul className="chips" aria-label="Séries en cours">
             <li className={`chip${streaks.lecture >= 3 ? ' hot' : ''}`}>
               <b className="num">{streaks.lecture}</b> j lecture
@@ -140,9 +140,8 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
             </li>
           </ul>
         </div>
+        <HeroMessage text={nextStep(entry, score, settings)} />
       </section>
-
-      <Companion score={score} off={entry.off} perfect={score !== null && score >= 0.9999} />
 
       <Heatmap
         index={index}
@@ -216,77 +215,12 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
             <b>{entry.reading ? (day === today ? "Lu aujourd'hui" : 'Lu ce jour-là') : 'Pas encore lu'}</b>
           </button>
         </div>
-        <NoteAndOff entry={entry} dayKey={day} onOff={(off) => set({ off })} onNote={(note) => set({ note: note.trim() ? note : null })} />
+        <button type="button" role="switch" aria-checked={entry.off} className="soft-btn" onClick={() => set({ off: !entry.off })}>
+          Journée off
+        </button>
       </section>
 
       <CelebrationToast celebration={celebration} />
     </div>
-  );
-}
-
-function NoteAndOff({
-  entry,
-  dayKey,
-  onOff,
-  onNote,
-}: {
-  entry: Entry;
-  dayKey: string;
-  onOff: (v: boolean) => void;
-  onNote: (s: string) => void;
-}) {
-  const [open, setOpen] = useState((entry.note ?? '') !== '');
-  useEffect(() => setOpen((entry.note ?? '') !== ''), [dayKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  return (
-    <>
-      <div className="extras">
-        <button type="button" role="switch" aria-checked={entry.off} className="soft-btn" onClick={() => onOff(!entry.off)}>
-          Journée off
-        </button>
-        {!open && (
-          <button type="button" className="soft-btn" onClick={() => setOpen(true)}>
-            <StickyNote size={16} aria-hidden="true" />
-            Ajouter une note
-          </button>
-        )}
-      </div>
-      {open && <NoteField key={dayKey} initial={entry.note ?? ''} autoFocus={(entry.note ?? '') === ''} onSave={onNote} />}
-    </>
-  );
-}
-
-/** Note en état local, écrite 400 ms après la dernière frappe : le curseur ne saute pas. */
-function NoteField({ initial, autoFocus, onSave }: { initial: string; autoFocus: boolean; onSave: (s: string) => void }) {
-  const [text, setText] = useState(initial);
-  const saved = useRef(initial);
-  const save = useRef(onSave);
-  save.current = onSave;
-
-  useEffect(() => {
-    if (text === saved.current) return;
-    const t = setTimeout(() => {
-      saved.current = text;
-      save.current(text);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [text]);
-
-  return (
-    <textarea
-      className="note"
-      aria-label="Note"
-      placeholder="Note du jour"
-      rows={2}
-      maxLength={2000}
-      value={text}
-      autoFocus={autoFocus}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={() => {
-        if (text !== saved.current) {
-          saved.current = text;
-          save.current(text);
-        }
-      }}
-    />
   );
 }
