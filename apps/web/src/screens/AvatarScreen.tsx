@@ -6,7 +6,6 @@ import {
   PET_ACCESSORIES,
   PETS,
   REQUIREMENTS,
-  SLOTS,
   bodyKey,
   describeRequirement,
   itemKey,
@@ -16,28 +15,31 @@ import {
   setPet,
   setSlot,
   type AvatarConfig,
+  type Progress,
   type Slot,
   type UnlockKey,
 } from '@hibi/domain';
-import { Backpack, Ban, Check, Crown, Glasses, Hand, Lock, PawPrint, Palette, RotateCcw, Shirt, type LucideIcon } from 'lucide-react';
+import { Backpack, Check, ChevronLeft, Crown, Glasses, Hand, Lock, PawPrint, Palette, RotateCcw, Shirt, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { AvatarView } from '../components/AvatarView';
-import { TopBar } from '../components/TopBar';
-import { useAvatar, useKV, useProgress, useUnlocked } from '../hooks';
 import { setKV } from '../db';
+import { useAvatar, useKV, useProgress, useUnlocked } from '../hooks';
 import { editAvatar } from '../sync';
 
-const SLOT_LABELS: Record<Slot, string> = {
-  head: 'Tête',
-  face: 'Visage',
-  neck: 'Cou',
-  held: 'Main',
-  back: 'Dos',
-};
-// Ordre d'affichage : du haut vers le bas du personnage.
-const SLOT_ORDER: Slot[] = ['head', 'face', 'neck', 'held', 'back'];
+type TabId = 'body' | Slot | 'pet';
 
-const BODY_SWATCH: Record<(typeof BODY_COLORS)[number], string> = {
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
+  { id: 'body', label: 'Couleur', icon: Palette },
+  { id: 'head', label: 'Tête', icon: Crown },
+  { id: 'face', label: 'Visage', icon: Glasses },
+  { id: 'neck', label: 'Cou', icon: Shirt },
+  { id: 'held', label: 'Main', icon: Hand },
+  { id: 'back', label: 'Dos', icon: Backpack },
+  { id: 'pet', label: 'Compagnon', icon: PawPrint },
+];
+
+/** Fond de la scène : la teinte du corps, pour que chaque couleur ait son ambiance. */
+const STAGE_TONE: Record<(typeof BODY_COLORS)[number], string> = {
   sage: 'var(--t-sage)',
   lilac: 'var(--t-lilac)',
   butter: 'var(--t-butter)',
@@ -45,74 +47,94 @@ const BODY_SWATCH: Record<(typeof BODY_COLORS)[number], string> = {
   peach: 'var(--pot)',
 };
 
-type TabId = 'body' | Slot | 'pet';
-
-const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
-  { id: 'body', label: 'Couleur', icon: Palette },
-  { id: 'head', label: SLOT_LABELS.head, icon: Crown },
-  { id: 'face', label: SLOT_LABELS.face, icon: Glasses },
-  { id: 'neck', label: SLOT_LABELS.neck, icon: Shirt },
-  { id: 'held', label: SLOT_LABELS.held, icon: Hand },
-  { id: 'back', label: SLOT_LABELS.back, icon: Backpack },
-  { id: 'pet', label: 'Compagnon', icon: PawPrint },
-];
-
-interface CardProps {
+/** Une option du vestiaire : l'avatar tel qu'il serait en la portant, et sa clé de déblocage. */
+interface Option {
+  id: string;
   label: string;
+  key?: UnlockKey;
+  result: AvatarConfig;
   selected: boolean;
-  onPick: () => void;
-  icon: LucideIcon;
-  swatch?: string;
-  /** Clé de déblocage : si l'objet est verrouillé, la condition et l'avancement remplacent le geste. */
-  unlockKey?: UnlockKey;
-  isNew?: boolean;
 }
 
-function Card({ label, selected, onPick, icon: Icon, swatch, unlockKey, isNew }: CardProps) {
-  const unlocked = useUnlocked();
-  const progress = useProgress();
-  const locked = unlockKey !== undefined && !unlocked.has(unlockKey);
-  const req = unlockKey ? REQUIREMENTS[unlockKey] : undefined;
-  if (locked && req) {
-    const have = progressLabel(req, progress);
-    const [got = 0, need = 1] = (have ?? '0 / 1').split(' / ').map(Number);
-    return (
-      <button type="button" className="av-card locked" disabled aria-label={`${label}, verrouillé : ${describeRequirement(req)}`}>
-        <span className="av-icon">
-          <Lock size={18} aria-hidden="true" />
-        </span>
-        <span className="av-name">{label}</span>
-        <span className="av-hint">
-          {describeRequirement(req)}
-          {have ? ` · ${have}` : ''}
-        </span>
-        <span className="av-bar" aria-hidden="true">
-          <i style={{ width: `${Math.round((100 * got) / Math.max(1, need))}%` }} />
-        </span>
-      </button>
-    );
+interface Section {
+  group: string;
+  /** Titre affiché au-dessus de la grille (le premier groupe d'un onglet n'en a pas : l'onglet suffit). */
+  title?: string;
+  options: Option[];
+}
+
+function tabSections(tab: TabId, cfg: AvatarConfig): Section[] {
+  if (tab === 'body') {
+    return [
+      {
+        group: 'Couleur',
+        options: BODY_COLORS.map((c) => ({ id: c, label: BODY_LABELS[c], key: bodyKey(c), result: { ...cfg, body: c }, selected: cfg.body === c })),
+      },
+    ];
   }
-  return (
-    <button type="button" className={`av-card${selected ? ' on' : ''}`} aria-pressed={selected} onClick={onPick}>
-      <span className="av-icon" style={swatch ? { background: swatch } : undefined}>
-        {!swatch && <Icon size={18} aria-hidden="true" />}
-      </span>
-      <span className="av-name">{label}</span>
-      {selected && (
-        <span className="av-check" aria-hidden="true">
-          <Check size={14} strokeWidth={3} />
-        </span>
-      )}
-      {isNew && <span className="new-tag">Nouveau</span>}
-    </button>
-  );
+  if (tab === 'pet') {
+    const sections: Section[] = [
+      {
+        group: 'Compagnon',
+        options: [
+          { id: 'none', label: 'Aucun', result: setPet(cfg, null), selected: cfg.pet === null },
+          ...PETS.map((p) => ({ id: p.id, label: p.label, key: petKey(p.id), result: setPet(cfg, p.id), selected: cfg.pet === p.id })),
+        ],
+      },
+    ];
+    if (cfg.pet) {
+      sections.push({
+        group: 'Accessoire',
+        title: 'Accessoire',
+        options: [
+          { id: 'none', label: 'Aucun', result: { ...cfg, petAccessory: null }, selected: cfg.petAccessory === null },
+          ...PET_ACCESSORIES.map((a) => ({
+            id: a.id,
+            label: a.label,
+            key: petAccessoryKey(a.id),
+            result: { ...cfg, petAccessory: a.id },
+            selected: cfg.petAccessory === a.id,
+          })),
+        ],
+      });
+    }
+    return sections;
+  }
+  return [
+    {
+      group: TABS.find((t) => t.id === tab)!.label,
+      options: [
+        { id: 'none', label: 'Aucun', result: setSlot(cfg, tab, null), selected: cfg[tab] === null },
+        ...ITEMS.filter((i) => i.slot === tab).map((i) => ({
+          id: i.id,
+          label: i.label,
+          key: itemKey(i.id),
+          result: setSlot(cfg, tab, i.id),
+          selected: cfg[tab] === i.id,
+        })),
+      ],
+    },
+  ];
+}
+
+function lockInfo(key: UnlockKey, progress: Progress) {
+  const req = REQUIREMENTS[key]!;
+  const have = progressLabel(req, progress);
+  const [got = 0, need = 1] = (have ?? '0 / 1').split(' / ').map(Number);
+  return { text: describeRequirement(req), have, ratio: got / Math.max(1, need) };
 }
 
 export function AvatarScreen() {
   const cfg = useAvatar();
   const unlocked = useUnlocked();
-  const apply = (change: (current: AvatarConfig) => AvatarConfig) => void editAvatar(change);
+  const progress = useProgress();
   const [tab, setTab] = useState<TabId>('body');
+  /** Essai d'un objet verrouillé : affiché sur la scène, jamais enregistré. */
+  const [trying, setTrying] = useState<{ option: Option; lock: ReturnType<typeof lockInfo> } | null>(null);
+  const apply = (change: (current: AvatarConfig) => AvatarConfig) => {
+    setTrying(null);
+    void editAvatar(change);
+  };
 
   // « Nouveau » = débloqué depuis la dernière visite. On fige l'état « déjà vu » à l'ouverture, puis tout est marqué comme vu.
   // Rien n'est marqué avant la première synchro : sur un nouvel appareil, l'historique ne doit pas passer pour une nouveauté.
@@ -123,117 +145,132 @@ export function AvatarScreen() {
   useEffect(() => {
     if (synced) void setKV('unlockedSeen', [...unlocked]);
   }, [unlocked, synced]);
-  const fresh = (key: UnlockKey) => !!seenAtOpen.current && !seenAtOpen.current.has(key) && unlocked.has(key);
+  const fresh = (key?: UnlockKey) => !!key && !!seenAtOpen.current && !seenAtOpen.current.has(key) && unlocked.has(key);
 
-  const keysOf = (id: TabId): UnlockKey[] =>
-    id === 'body'
-      ? BODY_COLORS.map(bodyKey)
-      : id === 'pet'
-        ? [...PETS.map((p) => petKey(p.id)), ...PET_ACCESSORIES.map((a) => petAccessoryKey(a.id))]
-        : ITEMS.filter((i) => i.slot === id).map((i) => itemKey(i.id));
-  // Les objets gagnés d'abord (ordre du catalogue sinon), les verrouillés ensuite.
-  const unlockedFirst = <T extends { key: UnlockKey }>(list: T[]) => [...list].sort((a, b) => Number(!unlocked.has(a.key)) - Number(!unlocked.has(b.key)));
-
-  const none = (selected: boolean, onPick: () => void) => <Card key="none" label="Aucun" icon={Ban} selected={selected} onPick={onPick} />;
+  const allKeys = Object.keys(REQUIREMENTS);
+  const owned = allKeys.filter((k) => unlocked.has(k)).length;
+  const shown = trying?.option.result ?? cfg;
 
   return (
-    <div className="screen avatar-screen">
-      <TopBar title="Mon avatar" />
-
-      <section className="card av-stage" aria-label="Aperçu">
-        <AvatarView config={cfg} width={220} />
-        <button type="button" className="icon-btn av-reset" aria-label="Remettre à zéro" onClick={() => apply(() => DEFAULT_AVATAR)}>
-          <RotateCcw size={18} aria-hidden="true" />
-        </button>
+    <div className="screen wardrobe" style={{ ['--stage' as string]: STAGE_TONE[shown.body] }}>
+      <section className="wardrobe-stage" aria-label="Aperçu">
+        <nav className="wardrobe-bar">
+          <a href="#/" className="stage-btn" aria-label="Retour à la saisie depuis Mon avatar">
+            <ChevronLeft size={22} aria-hidden="true" />
+          </a>
+          <span className="wardrobe-count">
+            <b className="num">{owned}</b> / {allKeys.length} objets gagnés
+          </span>
+          <button type="button" className="stage-btn" aria-label="Remettre à zéro" onClick={() => apply(() => DEFAULT_AVATAR)}>
+            <RotateCcw size={18} aria-hidden="true" />
+          </button>
+        </nav>
+        <div className="wardrobe-hero">
+          <div className="wardrobe-figure">
+            <span className="wardrobe-floor" aria-hidden="true" />
+            <AvatarView config={shown} width={340} />
+          </div>
+        </div>
+        {trying && (
+          <div className="try-banner" role="status">
+            <Lock size={16} aria-hidden="true" />
+            <span>
+              <b>Essai : {trying.option.label}</b>
+              {trying.lock.text}
+              {trying.lock.have ? ` · ${trying.lock.have}` : ''}
+            </span>
+            <button type="button" aria-label="Arrêter l'essai" onClick={() => setTrying(null)}>
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
+        )}
       </section>
 
-      <div className="av-tabs" role="tablist" aria-label="Catégories">
-        {TABS.map((t) => {
-          const hasNew = keysOf(t.id).some(fresh);
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              className={`av-tab${tab === t.id ? ' on' : ''}`}
-              onClick={() => setTab(t.id)}
-            >
-              <t.icon size={16} aria-hidden="true" />
-              {t.label}
-              {hasNew && <span className="av-dot" aria-hidden="true" />}
-            </button>
-          );
-        })}
-      </div>
+      <section className="drawer" aria-label="Vestiaire">
+        <div className="drawer-tabs" role="tablist" aria-label="Catégories">
+          {TABS.map((t) => {
+            const hasNew = tabSections(t.id, cfg).some((s) => s.options.some((o) => fresh(o.key)));
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={`drawer-tab${tab === t.id ? ' on' : ''}`}
+                onClick={() => {
+                  setTab(t.id);
+                  setTrying(null);
+                }}
+              >
+                <span className="drawer-tab-icon">
+                  <t.icon size={20} aria-hidden="true" />
+                  {hasNew && <span className="av-dot" aria-hidden="true" />}
+                </span>
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="av-list" role="tabpanel">
-        {tab === 'body' && (
-          <div className="av-grid" role="group" aria-label="Couleur">
-            {unlockedFirst(BODY_COLORS.map((c) => ({ c, key: bodyKey(c) }))).map(({ c, key }) => (
-              <Card
-                key={c}
-                label={BODY_LABELS[c]}
-                icon={Palette}
-                swatch={BODY_SWATCH[c]}
-                selected={cfg.body === c}
-                unlockKey={key}
-                isNew={fresh(key)}
-                onPick={() => apply((a) => ({ ...a, body: c }))}
-              />
-            ))}
-          </div>
-        )}
-
-        {tab !== 'body' && tab !== 'pet' && (
-          <div className="av-grid" role="group" aria-label={SLOT_LABELS[tab]}>
-            {none(cfg[tab] === null, () => apply((a) => setSlot(a, tab, null)))}
-            {unlockedFirst(ITEMS.filter((i) => i.slot === tab).map((i) => ({ i, key: itemKey(i.id) }))).map(({ i, key }) => (
-              <Card
-                key={i.id}
-                label={i.label}
-                icon={TABS.find((t) => t.id === tab)!.icon}
-                selected={cfg[tab] === i.id}
-                unlockKey={key}
-                isNew={fresh(key)}
-                onPick={() => apply((a) => setSlot(a, tab, i.id))}
-              />
-            ))}
-          </div>
-        )}
-
-        {tab === 'pet' && (
-          <>
-            <div className="av-grid" role="group" aria-label="Compagnon">
-              {none(cfg.pet === null, () => apply((a) => setPet(a, null)))}
-              {unlockedFirst(PETS.map((p) => ({ p, key: petKey(p.id) }))).map(({ p, key }) => (
-                <Card key={p.id} label={p.label} icon={PawPrint} selected={cfg.pet === p.id} unlockKey={key} isNew={fresh(key)} onPick={() => apply((a) => setPet(a, p.id))} />
-              ))}
-            </div>
-            {cfg.pet && (
-              <>
-                <h2 className="av-sub" id="slot-petacc">
-                  Accessoire
+        <div className="drawer-list" role="tabpanel">
+          {tabSections(tab, cfg).map((s) => (
+            <div key={s.group}>
+              {s.title && (
+                <h2 className="drawer-sub" id={`sub-${s.group}`}>
+                  {s.title}
                 </h2>
-                <div className="av-grid" role="group" aria-labelledby="slot-petacc">
-                  {none(cfg.petAccessory === null, () => apply((a) => ({ ...a, petAccessory: null })))}
-                  {PET_ACCESSORIES.map((a) => (
-                    <Card
-                      key={a.id}
-                      label={a.label}
-                      icon={PawPrint}
-                      selected={cfg.petAccessory === a.id}
-                      unlockKey={petAccessoryKey(a.id)}
-                      isNew={fresh(petAccessoryKey(a.id))}
-                      onPick={() => apply((cur) => ({ ...cur, petAccessory: a.id }))}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
+              )}
+              <div
+                className="drawer-grid"
+                role="group"
+                aria-label={s.title ? undefined : s.group}
+                aria-labelledby={s.title ? `sub-${s.group}` : undefined}
+              >
+                {s.options.map((o) => {
+                  const lock = o.key && !unlocked.has(o.key) ? lockInfo(o.key, progress) : null;
+                  const isTrying = !!o.key && trying?.option.key === o.key;
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      className={`slot${o.selected ? ' on' : ''}${lock ? ' locked' : ''}${isTrying ? ' trying' : ''}`}
+                      aria-label={lock ? `${o.label}, verrouillé : ${lock.text}` : o.label}
+                      aria-pressed={lock ? undefined : o.selected}
+                      aria-disabled={lock ? true : undefined}
+                      onClick={() => (lock ? setTrying(isTrying ? null : { option: o, lock }) : apply(() => o.result))}
+                    >
+                      <span
+                        className={`slot-thumb${tab === 'pet' ? ' wide' : ''}`}
+                        style={tab === 'body' ? { ['--stage' as string]: STAGE_TONE[o.result.body] } : undefined}
+                      >
+                        {/* Vignette = l'avatar qui porte l'objet ; hors onglet Compagnon on retire le pet pour zoomer sur le corps. */}
+                        <AvatarView config={tab === 'pet' ? o.result : setPet(o.result, null)} width={tab === 'pet' ? 112 : 168} label={false} />
+                      </span>
+                      <span className="slot-name">{o.label}</span>
+                      {o.selected && (
+                        <span className="slot-badge on" aria-hidden="true">
+                          <Check size={12} strokeWidth={3} />
+                        </span>
+                      )}
+                      {lock && (
+                        <>
+                          <span className="slot-badge" aria-hidden="true">
+                            <Lock size={12} strokeWidth={2.5} />
+                          </span>
+                          <span className="slot-bar" aria-hidden="true">
+                            <i style={{ width: `${Math.round(lock.ratio * 100)}%` }} />
+                          </span>
+                        </>
+                      )}
+                      {fresh(o.key) && <span className="new-tag">Nouveau</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

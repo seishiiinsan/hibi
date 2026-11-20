@@ -91,7 +91,7 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
   const tab = (name: string) => page.getByRole('tab', { name, exact: true }).click();
   await tab('Dos');
   await expect(page.getByRole('button', { name: 'Cape' })).toBeEnabled();
-  const stack = () => page.locator('.avatar-layer').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
+  const stack = () => page.locator('.wardrobe-hero .avatar-layer').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
 
   // Départ : corps sauge + pousse.
   await expect.poll(stack).toEqual(['body-sage.webp', 'head-pousse.webp']);
@@ -140,10 +140,10 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
 
 test('accueil : tout tient dans l’écran, sans défilement', async ({ page }) => {
   await login(page);
+  // Indépendant de l'état laissé par les autres tests : on mesure aujourd'hui puis hier, quelles que soient les saisies.
   const overflow = () => page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
   expect(await overflow()).toBeLessThanOrEqual(0);
-  await page.getByRole('button', { name: /^Dev : valider 1 h/ }).click();
-  await page.getByRole('switch', { name: 'Lecture' }).click();
-  await expect(page.getByTestId('day-score')).toHaveText('100 %');
+  await page.getByRole('button', { name: 'Hier' }).click();
+  await expect(page.getByRole('button', { name: 'Hier' })).toHaveAttribute('aria-pressed', 'true');
   expect(await overflow()).toBeLessThanOrEqual(0);
 });
