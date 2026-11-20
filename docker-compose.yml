@@ -14,6 +14,8 @@ services:
       ADMIN_USER: ${ADMIN_USER:-}
       # Optionnel : webhook n8n appelé quand une IP est bloquée (alerte mail).
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      # Optionnel : contact envoyé aux services de push (Apple, Google) avec le rappel du soir.
+      PUSH_SUBJECT: ${PUSH_SUBJECT:-}
     volumes: ["habit-data:/data"]
     secrets: [admin_password_hash]
     networks: [proxy]

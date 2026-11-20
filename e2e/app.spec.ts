@@ -54,6 +54,26 @@ test('historique : une journée passée s’ouvre et se modifie', async ({ page 
   await expect(rows.nth(10)).toContainText('Off');
 });
 
+test('historique : séries en cours et records par critère', async ({ page }) => {
+  await login(page);
+  await page.getByRole('link', { name: 'Historique' }).click();
+  const series = page.getByRole('region', { name: 'Séries' });
+  await expect(series.locator('.serie')).toHaveCount(4);
+  await expect(series).toContainText('Lecture');
+  await expect(series).toContainText('record');
+});
+
+test('réglages : l’heure du rappel du soir est enregistrée côté serveur', async ({ page }) => {
+  await login(page);
+  await page.getByRole('link', { name: 'Réglages' }).click();
+  const reminder = page.getByRole('region', { name: 'Rappel du soir' });
+  await expect(reminder.locator('input[type=time]')).toBeEnabled();
+  await reminder.locator('input[type=time]').fill('21:45');
+  await expect
+    .poll(async () => ((await (await page.request.get('/api/push')).json()) as { time: string }).time)
+    .toBe('21:45');
+});
+
 test('heatmap : un tap ouvre l’historique', async ({ page }) => {
   await login(page);
   await page.getByRole('button', { name: /^Activité des 18 dernières semaines/ }).click();

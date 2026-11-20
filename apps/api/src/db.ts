@@ -35,8 +35,35 @@ CREATE TABLE IF NOT EXISTS avatar (
   updated_at TEXT NOT NULL            -- ISO 8601 UTC, horodaté côté client : le plus récent gagne
 ) STRICT;
 
+-- Rappel du soir : un abonnement Web Push par appareil, une heure commune, un envoi par jour au plus.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint TEXT PRIMARY KEY,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS reminder (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  time TEXT NOT NULL DEFAULT '22:00', -- 'HH:MM', heure de Paris
+  last_sent_day TEXT                  -- 'YYYY-MM-DD' : jamais deux rappels le même jour
+) STRICT;
+
+-- Clés VAPID générées au premier démarrage : en base, elles suivent les sauvegardes (les changer désabonne tout le monde).
+CREATE TABLE IF NOT EXISTS vapid (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  public_key TEXT NOT NULL,
+  private_key TEXT NOT NULL
+) STRICT;
+
 INSERT OR IGNORE INTO settings (id) VALUES (1);
+INSERT OR IGNORE INTO reminder (id) VALUES (1);
 `;
+
+export interface PushSubscriptionRecord {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
 
 interface EntryRow {
   day: string;
@@ -99,6 +126,18 @@ export function createRepo(db: DB) {
     ON CONFLICT (id) DO UPDATE SET config = excluded.config, updated_at = excluded.updated_at
     WHERE excluded.updated_at > avatar.updated_at`);
 
+  const getEntryStmt = db.prepare<[string], EntryRow>('SELECT * FROM entries WHERE day = ?');
+  const listSubsStmt = db.prepare<[], { endpoint: string; p256dh: string; auth: string }>('SELECT endpoint, p256dh, auth FROM push_subscriptions');
+  const putSubStmt = db.prepare(`
+    INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at) VALUES (@endpoint, @p256dh, @auth, @created_at)
+    ON CONFLICT (endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth`);
+  const deleteSubStmt = db.prepare<[string]>('DELETE FROM push_subscriptions WHERE endpoint = ?');
+  const getReminderStmt = db.prepare<[], { time: string; last_sent_day: string | null }>('SELECT time, last_sent_day FROM reminder WHERE id = 1');
+  const setReminderTimeStmt = db.prepare<[string]>('UPDATE reminder SET time = ? WHERE id = 1');
+  const setReminderSentStmt = db.prepare<[string]>('UPDATE reminder SET last_sent_day = ? WHERE id = 1');
+  const getVapidStmt = db.prepare<[], { public_key: string; private_key: string }>('SELECT public_key, private_key FROM vapid WHERE id = 1');
+  const putVapidStmt = db.prepare<[string, string]>('INSERT OR IGNORE INTO vapid (id, public_key, private_key) VALUES (1, ?, ?)');
+
   const upsertMany = db.transaction((entries: readonly Entry[]) => {
     for (const e of entries) {
       upsert.run({
@@ -144,6 +183,31 @@ export function createRepo(db: DB) {
     /** La config la plus récente gagne, comme pour les saisies. */
     putAvatar(config: AvatarConfig, updatedAt: string) {
       putAvatarStmt.run({ config: JSON.stringify(config), updated_at: updatedAt });
+    },
+    getEntry(day: string): Entry | undefined {
+      const r = getEntryStmt.get(day);
+      return r ? toEntry(r) : undefined;
+    },
+    listSubscriptions: (): PushSubscriptionRecord[] =>
+      listSubsStmt.all().map((r) => ({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } })),
+    putSubscription(sub: PushSubscriptionRecord) {
+      putSubStmt.run({ endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, created_at: new Date().toISOString() });
+    },
+    deleteSubscription: (endpoint: string) => void deleteSubStmt.run(endpoint),
+    getReminder(): { time: string; lastSentDay: string | null } {
+      const r = getReminderStmt.get();
+      return { time: r?.time ?? '22:00', lastSentDay: r?.last_sent_day ?? null };
+    },
+    setReminderTime: (time: string) => void setReminderTimeStmt.run(time),
+    setReminderSent: (day: string) => void setReminderSentStmt.run(day),
+    /** Crée les clés au premier appel, puis renvoie toujours les mêmes. */
+    vapidKeys(generate: () => { publicKey: string; privateKey: string }): { publicKey: string; privateKey: string } {
+      const existing = getVapidStmt.get();
+      if (existing) return { publicKey: existing.public_key, privateKey: existing.private_key };
+      const k = generate();
+      putVapidStmt.run(k.publicKey, k.privateKey);
+      const saved = getVapidStmt.get()!;
+      return { publicKey: saved.public_key, privateKey: saved.private_key };
     },
     putSettings(s: Settings) {
       putSettingsStmt.run({

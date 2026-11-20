@@ -10,6 +10,7 @@ import {
   indexEntries,
   scoreColor,
   sevenDayScore,
+  bestStreak,
   streak,
   validateEntry,
   validateSettings,
@@ -94,6 +95,22 @@ describe('séries', () => {
   it('un critère non saisi dans une journée saisie casse la série', () => {
     const idx = indexEntries([entry('2026-12-01', { sleepH: 8 }), entry('2026-12-02', { devMin: 60 }), entry('2026-12-03', { sleepH: 8 })]);
     expect(streak(idx, 'sleep', '2026-12-03', S)).toBe(1);
+  });
+
+  it('record : la plus longue série de l’historique, Off ignoré, trou ou échec qui casse', () => {
+    const idx = indexEntries([
+      entry('2026-11-01', { reading: true }),
+      entry('2026-11-02', { reading: true }),
+      // 11-03 non saisi : casse
+      entry('2026-11-04', { reading: true }),
+      entry('2026-11-05', { off: true }),
+      entry('2026-11-06', { reading: true }),
+      entry('2026-11-07', { reading: true }),
+      entry('2026-11-08', { reading: false }),
+      entry('2026-11-09', { reading: true }),
+    ]);
+    expect(bestStreak(idx, 'reading', S)).toBe(3);
+    expect(bestStreak(indexEntries([]), 'reading', S)).toBe(0);
   });
 });
 

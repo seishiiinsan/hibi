@@ -30,6 +30,26 @@ export function streak(index: EntryIndex, c: Criterion, refDay: string, s: Setti
   return n;
 }
 
+/**
+ * Record d'un critère sur tout l'historique, avec les mêmes règles que `streak` :
+ * un jour Off est ignoré, un jour non saisi ou manqué casse la série.
+ */
+export function bestStreak(index: EntryIndex, c: Criterion, s: Settings): number {
+  const days = [...index.keys()].sort();
+  const first = days[0];
+  const last = days[days.length - 1];
+  if (!first || !last) return 0;
+  let best = 0;
+  let run = 0;
+  for (let d = first; d <= last; d = addDays(d, 1)) {
+    const e = index.get(d);
+    if (e?.off) continue;
+    run = e && isAchieved(e, c, s) ? run + 1 : 0;
+    best = Math.max(best, run);
+  }
+  return best;
+}
+
 /** Moyenne des scores non vides des 7 derniers jours (refDay inclus) ; null si aucun. */
 export function sevenDayScore(index: EntryIndex, refDay: string, s: Settings): number | null {
   const scores: number[] = [];

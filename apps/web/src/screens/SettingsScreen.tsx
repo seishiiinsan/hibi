@@ -2,6 +2,7 @@ import { CRITERIA, validateSettings, type Criterion, type Settings } from '@hibi
 import { BedDouble, BookOpen, CodeXml, Download, LogOut, Moon, Scale, Target, type LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { logout, saveSettings } from '../api';
+import { ReminderSection } from '../components/ReminderSection';
 import { TopBar } from '../components/TopBar';
 import { useKV, useSettings, useSyncInfo } from '../hooks';
 
@@ -124,6 +125,8 @@ export function SettingsScreen() {
             </Row>
           ))}
         </section>
+
+        <ReminderSection />
 
         <div className="actions">
           {errors.length > 0 && <p className="form-error">Valeurs invalides : vérifie les champs en rouge.</p>}

@@ -8,7 +8,7 @@ await build({
   platform: 'node',
   target: 'node22',
   format: 'esm',
-  external: ['better-sqlite3', '@node-rs/argon2', 'fastify', '@fastify/*'],
+  external: ['better-sqlite3', '@node-rs/argon2', 'fastify', '@fastify/*', 'web-push'],
   sourcemap: true,
   logLevel: 'info',
 });
