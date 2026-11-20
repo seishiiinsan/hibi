@@ -135,7 +135,11 @@ svg { flex: none; }
 .greeting h1 { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-strong); line-height: 1.15; }
 .greeting .date { color: var(--ink-2); }
 .greeting .date::first-letter { text-transform: uppercase; }
-.greeting-sub { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px var(--s3); }
+.greeting-sub { margin: 0; display: flex; align-items: center; gap: var(--s3); min-width: 0; white-space: nowrap; }
+.greeting-sub .date { flex: none; }
+/* La synchro reste sur la ligne de la date : sa fin est coupée en « … » s'il manque de place. */
+.greeting-sub .sync { flex: 0 1 auto; min-width: 0; }
+.sync-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .pills { display: flex; gap: var(--s1); padding: var(--s1); border-radius: 26px; background: var(--sunken); }
 .pill-btn {
@@ -365,7 +369,6 @@ svg { flex: none; }
 
 /* Humeurs : l'avatar respire plus lentement quand il dort, saute quand c'est une journée parfaite */
 .avatar-view.mood-sleepy .avatar-layer { animation-duration: 5.5s; }
-.companion { display: block; color: inherit; text-decoration: none; }
 @media (prefers-reduced-motion: no-preference) {
   .avatar-view.joy .avatar-layer { animation: hop 0.9s ease-in-out infinite; }
 }
