@@ -14,9 +14,9 @@ import {
 import { BedDouble, BookOpen, Check, ChevronLeft, CodeXml, Moon } from 'lucide-react';
 import { useMemo } from 'react';
 import { CelebrationToast, useCelebration } from '../components/Celebration';
-import { Companion, HeroMessage } from '../components/Companion';
+import { Companion } from '../components/Companion';
 import { Heatmap } from '../components/Heatmap';
-import { Pot } from '../components/Pot';
+import { ScoreRing } from '../components/ScoreRing';
 import { NavButtons, SyncBadge } from '../components/TopBar';
 import { Tile } from '../components/Tile';
 import { formatDay, formatDayLong, formatHours, formatMinutes } from '../format';
@@ -39,18 +39,6 @@ function greeting(hour: number): string {
   if (hour < 12) return 'Bonjour';
   if (hour < 18) return 'Bon après-midi';
   return 'Bonsoir';
-}
-
-/** Une phrase qui dit quoi faire ensuite, pas un état. */
-function nextStep(e: Entry, score: number | null, s: Settings): string {
-  if (e.off) return 'Journée off : elle ne compte ni dans le score ni dans les séries.';
-  if (score === null) return 'Ta journée commence ici : un tap sur une valeur la garde.';
-  if (score >= 0.9999) return 'Journée pleine. Bravo.';
-  if (e.bedtime === null || e.sleepH === null) return 'Il manque ta nuit : coucher et sommeil.';
-  if (e.devMin !== null && e.devMin < s.devTargetMin) return `Encore ${s.devTargetMin - e.devMin} min de dev pour l'objectif.`;
-  if (e.devMin === null) return 'Il manque ton temps de dev.';
-  if (!e.reading) return 'Il manque la lecture.';
-  return 'Presque : coucher ou sommeil un peu juste.';
 }
 
 export function EntryScreen({ day: routeDay }: { day?: string }) {
@@ -95,52 +83,39 @@ export function EntryScreen({ day: routeDay }: { day?: string }) {
       <header className="topbar">
         <div className="greeting">
           <h1>{name ? `${greeting(hour)} ${name}` : greeting(hour)}</h1>
-          <span>{formatDayLong(day)}</span>
+          <p className="greeting-sub">
+            <span className="date">{formatDayLong(day)}</span>
+            <SyncBadge />
+          </p>
         </div>
         <NavButtons />
       </header>
 
-      <div className="subbar">
-        <div className="pills" role="group" aria-label="Jour saisi">
-          {isPast ? (
-            <button type="button" className="pill-btn active" onClick={() => goTo(openDay)}>
-              <ChevronLeft size={16} aria-hidden="true" />
-              {formatDay(day)}
-            </button>
-          ) : (
-            [yesterday, today].map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={`pill-btn${d === day ? ' active' : ''}`}
-                aria-pressed={d === day}
-                onClick={() => goTo(d)}
-              >
-                {d === today ? "Aujourd'hui" : 'Hier'}
-              </button>
-            ))
-          )}
-        </div>
-        <SyncBadge />
-      </div>
-
       <section className="card hero" aria-label="Résumé">
-        <div className="hero-scene">
-          <Companion score={score} off={entry.off} perfect={score !== null && score >= 0.9999} />
-          <Pot score={score} size={72} celebrate={celebration?.kind === 'perfect'} />
-          <ul className="chips" aria-label="Séries en cours">
-            <li className={`chip${streaks.lecture >= 3 ? ' hot' : ''}`}>
-              <b className="num">{streaks.lecture}</b> j lecture
-            </li>
-            <li className={`chip${streaks.dev >= 3 ? ' hot' : ''}`}>
-              <b className="num">{streaks.dev}</b> j dev
-            </li>
-            <li className={`chip${streaks.sommeil >= 3 ? ' hot' : ''}`}>
-              <b className="num">{streaks.sommeil}</b> {streaks.sommeil > 1 ? 'nuits' : 'nuit'}
-            </li>
-          </ul>
+        <Companion score={score} off={entry.off} perfect={score !== null && score >= 0.9999} />
+        <div className="hero-top">
+          <div className="pills" role="group" aria-label="Jour saisi">
+            {isPast ? (
+              <button type="button" className="pill-btn active" onClick={() => goTo(openDay)}>
+                <ChevronLeft size={16} aria-hidden="true" />
+                {formatDay(day)}
+              </button>
+            ) : (
+              [yesterday, today].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`pill-btn${d === day ? ' active' : ''}`}
+                  aria-pressed={d === day}
+                  onClick={() => goTo(d)}
+                >
+                  {d === today ? "Aujourd'hui" : 'Hier'}
+                </button>
+              ))
+            )}
+          </div>
+          <ScoreRing score={score} size={72} stroke={7} celebrate={celebration?.kind === 'perfect'} testId="day-score" />
         </div>
-        <HeroMessage text={nextStep(entry, score, settings)} />
       </section>
 
       <Heatmap
