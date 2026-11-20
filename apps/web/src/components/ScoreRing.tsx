@@ -6,9 +6,11 @@ interface ScoreRingProps {
   stroke?: number;
   celebrate?: boolean;
   label?: string;
+  /** Pour les tests : posé sur la valeur affichée (« 72 % »). */
+  testId?: string;
 }
 
-export function ScoreRing({ score, size = 112, stroke = 10, celebrate = false, label = 'Score du jour' }: ScoreRingProps) {
+export function ScoreRing({ score, size = 112, stroke = 10, celebrate = false, label = 'Score du jour', testId }: ScoreRingProps) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = score === null ? 0 : Math.max(0, Math.min(1, score));
@@ -32,7 +34,7 @@ export function ScoreRing({ score, size = 112, stroke = 10, celebrate = false, l
         />
       </svg>
       <span className="ring-label" aria-hidden="true">
-        <span className="ring-value num">
+        <span className="ring-value num" data-testid={testId}>
           {score === null ? '—' : toPercent(score)}
           {score !== null && <small> %</small>}
         </span>
