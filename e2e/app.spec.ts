@@ -63,13 +63,17 @@ test('heatmap : un tap ouvre l’historique', async ({ page }) => {
 test('avatar : les objets se gagnent, les verrouillés disent quoi faire', async ({ page }) => {
   await login(page);
   await page.getByRole('link', { name: /^Mon avatar/ }).click();
+  const tab = (name: string) => page.getByRole('tab', { name, exact: true }).click();
   // Gratuits dès le départ.
   await expect(page.getByRole('button', { name: 'Sauge' })).toBeEnabled();
+  await tab('Tête');
   await expect(page.getByRole('button', { name: 'Pousse' })).toBeEnabled();
   // Une base presque vide : la cape (10 journées parfaites) et l'oiseau (14 bonnes journées d'affilée) restent à gagner.
+  await tab('Dos');
   const cape = page.getByRole('button', { name: /^Cape/ });
   await expect(cape).toBeDisabled();
   await expect(cape).toHaveAccessibleName(/verrouillé : 10 journées parfaites/);
+  await tab('Compagnon');
   await expect(page.getByRole('button', { name: /^Oiseau/ })).toBeDisabled();
 });
 
@@ -84,6 +88,8 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
   expect((await page.request.post('/api/sync', { data: { entries } })).status()).toBe(200);
   await page.reload();
   await page.getByRole('link', { name: /^Mon avatar/ }).click();
+  const tab = (name: string) => page.getByRole('tab', { name, exact: true }).click();
+  await tab('Dos');
   await expect(page.getByRole('button', { name: 'Cape' })).toBeEnabled();
   const stack = () => page.locator('.avatar-layer').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
 
@@ -91,15 +97,21 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
   await expect.poll(stack).toEqual(['body-sage.webp', 'head-pousse.webp']);
 
   // Un seul objet par emplacement : le bonnet remplace la pousse ; sur un corps lilas il passe en variante « alt ».
+  await tab('Couleur');
   await page.getByRole('button', { name: 'Lilas' }).click();
+  await tab('Tête');
   await page.getByRole('button', { name: 'Bonnet' }).click();
+  await tab('Visage');
   await page.getByRole('button', { name: 'Lunettes de soleil' }).click();
+  await tab('Cou');
   await page.getByRole('button', { name: 'Écharpe' }).click();
+  await tab('Dos');
   await page.getByRole('button', { name: 'Cape' }).click();
   // Le tap écrit en local puis l'écran se met à jour : on attend l'état, on ne le lit pas au vol.
   await expect.poll(stack).toEqual(['back-cape.webp', 'body-lilac.webp', 'neck-echarpe.webp', 'head-bonnet-alt.webp', 'face-soleil.webp']);
 
   // Pet + accessoire ; retirer le pet retire l'accessoire.
+  await tab('Compagnon');
   await page.getByRole('button', { name: 'Lapin' }).click();
   await page.getByRole('button', { name: 'Petit nœud' }).click();
   await expect.poll(stack).toEqual(['pet-lapin.webp', 'petacc-lapin-noeud.webp', 'back-cape.webp', 'body-lilac.webp', 'neck-echarpe.webp', 'head-bonnet-alt.webp', 'face-soleil.webp']);
@@ -112,6 +124,7 @@ test('avatar : combinaisons cohérentes, sauvegarde hors ligne, puis synchro', a
 
   // Enregistré en local tout de suite (hors ligne), envoyé au retour du réseau.
   await context.setOffline(true);
+  await tab('Couleur');
   await page.getByRole('button', { name: 'Pêche' }).click();
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
